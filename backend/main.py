@@ -1,4 +1,5 @@
-﻿import json
+﻿import os
+import json
 import re
 import uuid
 from typing import Optional
@@ -11,6 +12,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from backend.auth import get_current_user, router as auth_router
+from backend.database import (
+    get_connection,
+    get_placeholder,
+    is_postgres,
+)
 import fitz
 from docx import Document
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
@@ -50,171 +56,199 @@ app.add_middleware(
 DB_PATH = Path(__file__).resolve().parent.parent / "verity.db"
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Initialize core tables using SQLite or PostgreSQL."""
 
-    # ============================================================
-    # BRAND GUIDELINES
-    # ============================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS brand_guidelines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL,
-            file_type TEXT NOT NULL,
-            extracted_text TEXT,
-            uploaded_at TEXT NOT NULL
-        )
-    """)
+    postgres = is_postgres()
 
-    # ============================================================
-    # REVIEWS
-    # ============================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guideline_id INTEGER,
-            guideline_filename TEXT,
-            content TEXT NOT NULL,
-            review_status TEXT NOT NULL,
-            total_violations INTEGER DEFAULT 0,
-            risk_high INTEGER DEFAULT 0,
-            risk_medium INTEGER DEFAULT 0,
-            risk_low INTEGER DEFAULT 0,
-            findings TEXT,
-            reviewed_at TEXT NOT NULL,
-            engine_version TEXT DEFAULT '2.0'
-        )
-    """)
+    id_column = (
+        "SERIAL PRIMARY KEY"
+        if postgres
+        else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    )
 
-    # ============================================================
-    # ANALYTICS
-    # ============================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS analytics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            metric_name TEXT NOT NULL,
-            metric_value REAL DEFAULT 0,
-            metric_category TEXT,
-            recorded_at TEXT NOT NULL
-        )
-    """)
+    conn = get_connection()
 
-    # ============================================================
-    # GOVERNANCE
-    # ============================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS governance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            review_id INTEGER,
-            finding_id TEXT,
-            title TEXT NOT NULL,
-            description TEXT,
-            severity TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'OPEN',
-            decision TEXT,
-            assigned_to TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-    """)
+    try:
+        cursor = conn.cursor()
 
-    # ============================================================
-    # AUDIT LOGS
-    # ============================================================
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            action TEXT NOT NULL,
-            entity_type TEXT,
-            entity_id INTEGER,
-            details TEXT,
-            performed_by TEXT,
-            created_at TEXT NOT NULL
-        )
-    """)
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS brand_guidelines (
+                id {id_column},
+                filename TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                extracted_text TEXT,
+                uploaded_at TEXT NOT NULL
+            )
+        """)
 
-    # ============================================================
-    # DATABASE MIGRATION
-    #
-    # CREATE TABLE IF NOT EXISTS does NOT modify an existing table.
-    # Therefore, check that all required columns exist.
-    # ============================================================
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS reviews (
+                id {id_column},
+                guideline_id INTEGER,
+                guideline_filename TEXT,
+                content TEXT NOT NULL,
+                review_status TEXT NOT NULL,
+                total_violations INTEGER DEFAULT 0,
+                risk_high INTEGER DEFAULT 0,
+                risk_medium INTEGER DEFAULT 0,
+                risk_low INTEGER DEFAULT 0,
+                findings TEXT,
+                reviewed_at TEXT NOT NULL,
+                engine_version TEXT DEFAULT '2.0'
+            )
+        """)
 
-    required_columns = {
-        "reviews": {
-            "guideline_id": "INTEGER",
-            "guideline_filename": "TEXT",
-            "content": "TEXT",
-            "review_status": "TEXT",
-            "total_violations": "INTEGER DEFAULT 0",
-            "risk_high": "INTEGER DEFAULT 0",
-            "risk_medium": "INTEGER DEFAULT 0",
-            "risk_low": "INTEGER DEFAULT 0",
-            "findings": "TEXT",
-            "reviewed_at": "TEXT",
-            "engine_version": "TEXT DEFAULT '2.0'"
-        },
-        "analytics": {
-            "metric_name": "TEXT",
-            "metric_value": "REAL DEFAULT 0",
-            "metric_category": "TEXT",
-            "recorded_at": "TEXT"
-        },
-        "governance": {
-            "review_id": "INTEGER",
-            "finding_id": "TEXT",
-            "title": "TEXT",
-            "description": "TEXT",
-            "severity": "TEXT",
-            "status": "TEXT DEFAULT 'OPEN'",
-            "decision": "TEXT",
-            "assigned_to": "TEXT",
-            "created_at": "TEXT",
-            "updated_at": "TEXT"
-        },
-        "audit_logs": {
-            "action": "TEXT",
-            "entity_type": "TEXT",
-            "entity_id": "INTEGER",
-            "details": "TEXT",
-            "performed_by": "TEXT",
-            "created_at": "TEXT"
-        }
-    }
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS analytics (
+                id {id_column},
+                metric_name TEXT NOT NULL,
+                metric_value REAL DEFAULT 0,
+                metric_category TEXT,
+                recorded_at TEXT NOT NULL
+            )
+        """)
 
-    for table_name, columns in required_columns.items():
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS governance (
+                id {id_column},
+                review_id INTEGER,
+                finding_id TEXT,
+                title TEXT NOT NULL,
+                description TEXT,
+                severity TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'OPEN',
+                decision TEXT,
+                assigned_to TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
 
-        cursor.execute(
-            f"PRAGMA table_info({table_name})"
-        )
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id {id_column},
+                action TEXT NOT NULL,
+                entity_type TEXT,
+                entity_id INTEGER,
+                details TEXT,
+                performed_by TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
 
-        existing_columns = {
-            row[1]
-            for row in cursor.fetchall()
+        required_columns = {
+            "reviews": {
+                "guideline_id": "INTEGER",
+                "guideline_filename": "TEXT",
+                "content": "TEXT",
+                "review_status": "TEXT",
+                "total_violations": "INTEGER DEFAULT 0",
+                "risk_high": "INTEGER DEFAULT 0",
+                "risk_medium": "INTEGER DEFAULT 0",
+                "risk_low": "INTEGER DEFAULT 0",
+                "findings": "TEXT",
+                "reviewed_at": "TEXT",
+                "engine_version": "TEXT DEFAULT '2.0'"
+            },
+            "analytics": {
+                "metric_name": "TEXT",
+                "metric_value": "REAL DEFAULT 0",
+                "metric_category": "TEXT",
+                "recorded_at": "TEXT"
+            },
+            "governance": {
+                "review_id": "INTEGER",
+                "finding_id": "TEXT",
+                "title": "TEXT",
+                "description": "TEXT",
+                "severity": "TEXT",
+                "status": "TEXT DEFAULT 'OPEN'",
+                "decision": "TEXT",
+                "assigned_to": "TEXT",
+                "created_at": "TEXT",
+                "updated_at": "TEXT"
+            },
+            "audit_logs": {
+                "action": "TEXT",
+                "entity_type": "TEXT",
+                "entity_id": "INTEGER",
+                "details": "TEXT",
+                "performed_by": "TEXT",
+                "created_at": "TEXT"
+            }
         }
 
-        for column_name, column_type in columns.items():
+        for table_name, columns in required_columns.items():
 
-            if column_name not in existing_columns:
-
+            if postgres:
                 cursor.execute(
-                    f"""
-                    ALTER TABLE {table_name}
-                    ADD COLUMN {column_name} {column_type}
                     """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                    AND table_name = %s
+                    """,
+                    (table_name,)
                 )
 
-    conn.commit()
-    conn.close()
+                existing_columns = {
+                    row["column_name"]
+                    for row in cursor.fetchall()
+                }
+
+            else:
+                cursor.execute(
+                    f"PRAGMA table_info({table_name})"
+                )
+
+                existing_columns = {
+                    row[1]
+                    for row in cursor.fetchall()
+                }
+
+            for column_name, column_type in columns.items():
+
+                if column_name not in existing_columns:
+                    cursor.execute(
+                        f"""
+                        ALTER TABLE {table_name}
+                        ADD COLUMN {column_name} {column_type}
+                        """
+                    )
+
+        conn.commit()
+
+        print(
+            "Core database initialization successful:",
+            "PostgreSQL" if postgres else "SQLite"
+        )
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
 
 init_db()
+
 def init_extended_db():
-    with sqlite3.connect(DB_PATH) as conn:
+    """Create extended application tables using the configured database."""
 
+    postgres = os.getenv("DATABASE_URL") is not None
 
-        conn.execute("""
+    id_column = (
+        "SERIAL PRIMARY KEY"
+        if postgres
+        else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    )
+
+    with get_connection() as conn:
+
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_column},
                 name TEXT NOT NULL,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
@@ -223,18 +257,18 @@ def init_extended_db():
             )
         """)
 
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS brands (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_column},
                 name TEXT NOT NULL,
                 description TEXT DEFAULT '',
                 created_at TEXT NOT NULL
             )
         """)
 
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS guideline_versions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_column},
                 guideline_id INTEGER NOT NULL,
                 version TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'ACTIVE',
@@ -242,24 +276,9 @@ def init_extended_db():
             )
         """)
 
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS reviews (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                review_uuid TEXT UNIQUE NOT NULL,
-                guideline_id INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                status TEXT NOT NULL,
-                total_violations INTEGER DEFAULT 0,
-                risk_high INTEGER DEFAULT 0,
-                risk_medium INTEGER DEFAULT 0,
-                risk_low INTEGER DEFAULT 0,
-                created_at TEXT NOT NULL
-            )
-        """)
-
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS review_findings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_column},
                 review_id INTEGER NOT NULL,
                 category TEXT NOT NULL,
                 severity TEXT NOT NULL,
@@ -270,20 +289,9 @@ def init_extended_db():
             )
         """)
 
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS audit_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                action TEXT NOT NULL,
-                entity_type TEXT NOT NULL,
-                entity_id TEXT,
-                details TEXT DEFAULT '',
-                created_at TEXT NOT NULL
-            )
-        """)
-
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS governance_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_column},
                 review_id INTEGER,
                 title TEXT NOT NULL,
                 severity TEXT NOT NULL,
@@ -295,9 +303,9 @@ def init_extended_db():
             )
         """)
 
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS evidence (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {id_column},
                 claim TEXT NOT NULL,
                 source TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'Review',
@@ -311,12 +319,12 @@ def init_extended_db():
 
 init_extended_db()
 def add_audit_log(action, entity_type, entity_id="", details=""):
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_connection() as conn:
         conn.execute(
-            """
+            f"""
             INSERT INTO audit_logs
             (action, entity_type, entity_id, details, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES ({', '.join([get_placeholder()] * 5)})
             """,
             (
                 action,
@@ -326,7 +334,6 @@ def add_audit_log(action, entity_type, entity_id="", details=""):
                 datetime.utcnow().isoformat()
             )
         )
-
 
 class ContentReviewRequest(BaseModel):
     guideline_id: int
@@ -354,7 +361,10 @@ def health_check():
 
 
 @app.post("/upload-guidelines")
-async def upload_guidelines(file: UploadFile = File(...),current_user: dict = Depends(get_current_user)):
+async def upload_guidelines(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
 
     filename = file.filename or ""
     extension = filename.lower().rsplit(".", 1)[-1]
@@ -400,19 +410,30 @@ async def upload_guidelines(file: UploadFile = File(...),current_user: dict = De
             detail="Unable to read this document. Please check the file."
         )
 
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.execute("""
+    # PostgreSQL-compatible database insertion
+    with get_connection() as conn:
+        cursor = conn.execute(
+            f"""
             INSERT INTO brand_guidelines
             (filename, file_type, extracted_text, uploaded_at)
-            VALUES (?, ?, ?, ?)
-        """, (
-            filename,
-            extension,
-            extracted_text,
-            datetime.now().isoformat()
-        ))
+            VALUES ({', '.join([get_placeholder()] * 4)})
+            RETURNING id
+            """,
+            (
+                filename,
+                extension,
+                extracted_text,
+                datetime.now().isoformat()
+            )
+        )
 
-        guideline_id = cursor.lastrowid
+        inserted_row = cursor.fetchone()
+
+        guideline_id = (
+            inserted_row["id"]
+            if isinstance(inserted_row, dict)
+            else inserted_row[0]
+        )
 
     return {
         "message": "Guidelines uploaded and text extracted successfully.",
@@ -423,11 +444,9 @@ async def upload_guidelines(file: UploadFile = File(...),current_user: dict = De
         "extracted_text": extracted_text
     }
 @app.get("/guidelines")
-def get_guidelines( current_user: dict = Depends(get_current_user)):
+def get_guidelines(current_user: dict = Depends(get_current_user)):
 
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-
+    with get_connection() as conn:
         rows = conn.execute("""
             SELECT id, filename, file_type,
                    extracted_text, uploaded_at
@@ -441,11 +460,9 @@ def get_guidelines( current_user: dict = Depends(get_current_user)):
     }
 
 @app.get("/reviews")
-def get_reviews( current_user: dict = Depends(get_current_user)):
+def get_reviews(current_user: dict = Depends(get_current_user)):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
-
+        with get_connection() as conn:
             rows = conn.execute("""
                 SELECT
                     id,
@@ -468,7 +485,6 @@ def get_reviews( current_user: dict = Depends(get_current_user)):
 
         for row in rows:
             review = dict(row)
-
             findings_text = review.get("findings")
 
             if findings_text:
@@ -488,23 +504,22 @@ def get_reviews( current_user: dict = Depends(get_current_user)):
 
     except Exception as e:
         print(f"ERROR in /reviews: {repr(e)}")
-
         raise HTTPException(
             status_code=500,
             detail=f"Unable to load reviews: {str(e)}"
         )
-
 @app.get("/reviews/{review_id}")
-def get_review(review_id: int,current_user: dict = Depends(get_current_user)):
+def get_review(
+    review_id: int,
+    current_user: dict = Depends(get_current_user)
+):
 
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-
+    with get_connection() as conn:
         review = conn.execute(
-            """
+            f"""
             SELECT *
             FROM reviews
-            WHERE id = ?
+            WHERE id = {get_placeholder()}
             """,
             (review_id,)
         ).fetchone()
@@ -516,10 +531,10 @@ def get_review(review_id: int,current_user: dict = Depends(get_current_user)):
             )
 
         findings = conn.execute(
-            """
+            f"""
             SELECT *
             FROM review_findings
-            WHERE review_id = ?
+            WHERE review_id = {get_placeholder()}
             ORDER BY id
             """,
             (review_id,)
@@ -538,14 +553,16 @@ class GovernanceRequest(BaseModel):
     due_date: str = ""
 
 @app.post("/governance")
-def create_governance_item(request: GovernanceRequest,current_user: dict = Depends(get_current_user)):
+def create_governance_item(
+    request: GovernanceRequest,
+    current_user: dict = Depends(get_current_user)
+):
 
     now = datetime.utcnow().isoformat()
 
-    with sqlite3.connect(DB_PATH) as conn:
-
+    with get_connection() as conn:
         cursor = conn.execute(
-            """
+            f"""
             INSERT INTO governance_items
             (
                 review_id,
@@ -557,7 +574,17 @@ def create_governance_item(request: GovernanceRequest,current_user: dict = Depen
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, 'PENDING', ?, ?, ?, ?)
+            VALUES (
+                {get_placeholder()},
+                {get_placeholder()},
+                {get_placeholder()},
+                'PENDING',
+                {get_placeholder()},
+                {get_placeholder()},
+                {get_placeholder()},
+                {get_placeholder()}
+            )
+            RETURNING id
             """,
             (
                 request.review_id,
@@ -570,7 +597,12 @@ def create_governance_item(request: GovernanceRequest,current_user: dict = Depen
             )
         )
 
-        item_id = cursor.lastrowid
+        inserted_row = cursor.fetchone()
+        item_id = (
+            inserted_row["id"]
+            if isinstance(inserted_row, dict)
+            else inserted_row[0]
+        )
 
     add_audit_log(
         "Governance item created",
@@ -588,22 +620,17 @@ def create_governance_item(request: GovernanceRequest,current_user: dict = Depen
 @app.get("/governance")
 def get_governance(current_user: dict = Depends(get_current_user)):
 
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-
-        rows = conn.execute(
-            """
+    with get_connection() as conn:
+        rows = conn.execute("""
             SELECT *
             FROM governance_items
             ORDER BY id DESC
-            """
-        ).fetchall()
+        """).fetchall()
 
     return {
         "total": len(rows),
         "items": [dict(row) for row in rows]
     }
-
 class GovernanceStatusRequest(BaseModel):
     status: str
 
@@ -629,31 +656,26 @@ def update_governance_status(
             detail=f"Invalid governance status: {status}"
         )
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        UPDATE governance_items
-        SET
-            status = ?,
-            updated_at = ?
-        WHERE id = ?
-    """, (
-        status,
-        datetime.now().isoformat(),
-        governance_id
-    ))
-
-    if cursor.rowcount == 0:
-        conn.close()
-
-        raise HTTPException(
-            status_code=404,
-            detail="Governance record not found"
+    with get_connection() as conn:
+        cursor = conn.execute(
+            f"""
+            UPDATE governance_items
+            SET status = {get_placeholder()},
+                updated_at = {get_placeholder()}
+            WHERE id = {get_placeholder()}
+            """,
+            (
+                status,
+                datetime.now().isoformat(),
+                governance_id
+            )
         )
 
-    conn.commit()
-    conn.close()
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Governance record not found"
+            )
 
     return {
         "message": "Governance status updated",
@@ -684,13 +706,13 @@ def update_governance_status(
 
     now = datetime.utcnow().isoformat()
 
-    with sqlite3.connect(DB_PATH) as conn:
-
+    with get_connection() as conn:
         cursor = conn.execute(
-            """
+            f"""
             UPDATE governance_items
-            SET status = ?, updated_at = ?
-            WHERE id = ?
+            SET status = {get_placeholder()},
+                updated_at = {get_placeholder()}
+            WHERE id = {get_placeholder()}
             """,
             (
                 request.status,
@@ -719,93 +741,71 @@ def update_governance_status(
 @app.get("/audit-logs")
 def get_audit_logs(current_user: dict = Depends(get_current_user)):
 
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-
-        rows = conn.execute(
-            """
+    with get_connection() as conn:
+        rows = conn.execute("""
             SELECT *
             FROM audit_logs
             ORDER BY id DESC
             LIMIT 200
-            """
-        ).fetchall()
+        """).fetchall()
 
     return {
         "total": len(rows),
         "logs": [dict(row) for row in rows]
     }
-
 @app.get("/database-status")
 def database_status(current_user: dict = Depends(get_current_user)):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'table'
-        ORDER BY name
-    """)
+    with get_connection() as conn:
 
-    tables = [row[0] for row in cursor.fetchall()]
+        if is_postgres():
+            rows = conn.execute("""
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = current_schema()
+                AND table_type = 'BASE TABLE'
+                ORDER BY table_name
+            """).fetchall()
 
-    conn.close()
+            tables = [row["table_name"] for row in rows]
+
+        else:
+            rows = conn.execute("""
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table'
+                ORDER BY name
+            """).fetchall()
+
+            tables = [row["name"] for row in rows]
 
     return {
-        "database": str(DB_PATH),
+        "database": "PostgreSQL" if is_postgres() else str(DB_PATH),
         "status": "connected",
         "tables": tables
     }
-
 @app.get("/analytics")
 def get_analytics(current_user: dict = Depends(get_current_user)):
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.row_factory = sqlite3.Row
+        with get_connection() as conn:
 
             review_stats = conn.execute("""
                 SELECT
                     COUNT(*) AS total_reviews,
-
-                    COALESCE(
-                        SUM(
-                            CASE
-                                WHEN review_status = 'HIGH_RISK'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ),
-                        0
-                    ) AS high_risk_reviews,
-
-                    COALESCE(
-                        SUM(
-                            CASE
-                                WHEN review_status = 'NEEDS_REVISION'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ),
-                        0
-                    ) AS revision_reviews,
-
-                    COALESCE(
-                        SUM(
-                            CASE
-                                WHEN review_status = 'COMPLIANT'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ),
-                        0
-                    ) AS compliant_reviews,
-
-                    COALESCE(
-                        SUM(total_violations),
-                        0
-                    ) AS total_violations
-
+                    COALESCE(SUM(
+                        CASE WHEN review_status = 'HIGH_RISK'
+                        THEN 1 ELSE 0 END
+                    ), 0) AS high_risk_reviews,
+                    COALESCE(SUM(
+                        CASE WHEN review_status = 'NEEDS_REVISION'
+                        THEN 1 ELSE 0 END
+                    ), 0) AS revision_reviews,
+                    COALESCE(SUM(
+                        CASE WHEN review_status = 'COMPLIANT'
+                        THEN 1 ELSE 0 END
+                    ), 0) AS compliant_reviews,
+                    COALESCE(SUM(total_violations), 0)
+                    AS total_violations
                 FROM reviews
             """).fetchone()
 
@@ -823,7 +823,6 @@ def get_analytics(current_user: dict = Depends(get_current_user)):
             "revision_reviews": review_stats["revision_reviews"] or 0,
             "compliant_reviews": review_stats["compliant_reviews"] or 0,
             "total_violations": review_stats["total_violations"] or 0,
-
             "risk_summary": {
                 "high": risk_stats["high"] or 0,
                 "medium": risk_stats["medium"] or 0,
@@ -844,12 +843,12 @@ def get_analytics(current_user: dict = Depends(get_current_user)):
 @app.post("/review-content")
 def review_content(request: ContentReviewRequest,current_user: dict = Depends(get_current_user)):
     # Find the selected brand guidelines
-    with sqlite3.connect(DB_PATH) as conn:
+    with get_connection() as conn:
         row = conn.execute(
-            """
+            f"""
             SELECT filename, extracted_text
             FROM brand_guidelines
-            WHERE id = ?
+            WHERE id = {get_placeholder()}
             """,
             (request.guideline_id,)
         ).fetchone()
@@ -860,7 +859,8 @@ def review_content(request: ContentReviewRequest,current_user: dict = Depends(ge
             detail="Guideline ID not found."
         )
 
-    filename, guideline_text = row
+    filename = row['filename']
+    guideline_text = row['extracted_text']
     content = request.content
 
     # Define brand rules
@@ -1118,47 +1118,47 @@ def review_content(request: ContentReviewRequest,current_user: dict = Depends(ge
         else "COMPLIANT"
     )
 
-    with sqlite3.connect(DB_PATH) as conn:
-         cursor = conn.execute(
-        """
-        INSERT INTO reviews
-        (
-            guideline_id,
-            guideline_filename,
-            content,
-            review_status,
-            total_violations,
-            risk_high,
-            risk_medium,
-            risk_low,
-            findings,
-            reviewed_at,
-            engine_version
+    with get_connection() as conn:
+        cursor = conn.execute(
+            f"""
+            INSERT INTO reviews
+            (
+                guideline_id,
+                guideline_filename,
+                content,
+                review_status,
+                total_violations,
+                risk_high,
+                risk_medium,
+                risk_low,
+                findings,
+                reviewed_at,
+                engine_version
+            )
+            VALUES ({', '.join([get_placeholder()] * 11)})
+            RETURNING id
+            """,
+            (
+                request.guideline_id,
+                filename,
+                content,
+                review_status,
+                len(findings),
+                high_count,
+                medium_count,
+                low_count,
+                json.dumps(findings),
+                datetime.utcnow().isoformat(),
+                "2.0"
+            )
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            request.guideline_id,
-            filename,
-            content,
-            review_status,
-            len(findings),
-            high_count,
-            medium_count,
-            low_count,
-            json.dumps(findings),
-            datetime.utcnow().isoformat(),
-            "2.0"
-        )
-    )
 
-    review_id = cursor.lastrowid
+        inserted_row = cursor.fetchone()
+        review_id = inserted_row["id"] if isinstance(inserted_row, dict) else inserted_row[0]
 
-    review_id = cursor.lastrowid
-
-    for finding in findings:
+        for finding in findings:
             conn.execute(
-                """
+                f"""
                 INSERT INTO review_findings
                 (
                     review_id,
@@ -1169,7 +1169,7 @@ def review_content(request: ContentReviewRequest,current_user: dict = Depends(ge
                     suggestion,
                     confidence
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES ({', '.join([get_placeholder()] * 7)})
                 """,
                 (
                     review_id,
@@ -1181,7 +1181,6 @@ def review_content(request: ContentReviewRequest,current_user: dict = Depends(ge
                     finding.get("confidence", 90)
                 )
             )
-
     add_audit_log(
         "Review completed",
         "review",

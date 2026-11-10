@@ -1,19 +1,17 @@
-
-import os
+﻿import os
 import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import jwt
+import psycopg
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from pwdlib import PasswordHash
 
+from backend.database import get_connection
 
-# Reuse the existing database in the project root.
-DB_PATH = Path(__file__).resolve().parent.parent / "verity.db"
 
 JWT_SECRET = os.getenv("VARIETY_JWT_SECRET")
 JWT_ALGORITHM = "HS256"
@@ -36,13 +34,8 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=12, max_length=128)
 
 
-def get_connection():
-    if not DB_PATH.is_file():
-        raise RuntimeError(f"Existing database not found: {DB_PATH}")
-
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    return conn
+def get_placeholder():
+    return "%s" if os.getenv("DATABASE_URL") else "?"
 
 
 def normalize_email(email: str) -> str:
@@ -77,15 +70,16 @@ def register(data: RegisterRequest):
     if not name:
         raise HTTPException(status_code=422, detail="Name is required.")
 
-    # Public registration must never allow self-assigned admin roles.
     password_hash = password_hasher.hash(data.password)
+    placeholder = get_placeholder()
 
     try:
         with get_connection() as conn:
-            cursor = conn.execute(
-                """
+            user = conn.execute(
+                f"""
                 INSERT INTO users (name, email, password_hash, role, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+                RETURNING id
                 """,
                 (
                     name,
@@ -94,10 +88,11 @@ def register(data: RegisterRequest):
                     "Reviewer",
                     datetime.now(timezone.utc).isoformat(),
                 ),
-            )
-            user_id = cursor.lastrowid
+            ).fetchone()
 
-    except sqlite3.IntegrityError:
+            user_id = user["id"]
+
+    except (sqlite3.IntegrityError, psycopg.IntegrityError):
         raise HTTPException(
             status_code=409,
             detail="An account with this email may already exist.",
@@ -114,16 +109,15 @@ def register(data: RegisterRequest):
 
 @router.post("/login")
 def login(form: OAuth2PasswordRequestForm = Depends()):
-    # OAuth2PasswordRequestForm uses the field named "username".
-    # For this application, users enter their email in that field.
     email = normalize_email(form.username)
+    placeholder = get_placeholder()
 
     with get_connection() as conn:
         user = conn.execute(
-            """
+            f"""
             SELECT id, name, email, password_hash, role
             FROM users
-            WHERE email = ?
+            WHERE email = {placeholder}
             """,
             (email,),
         ).fetchone()
@@ -163,12 +157,14 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     except (jwt.InvalidTokenError, ValueError, TypeError, KeyError):
         raise unauthorized
 
+    placeholder = get_placeholder()
+
     with get_connection() as conn:
         user = conn.execute(
-            """
+            f"""
             SELECT id, name, email, role
             FROM users
-            WHERE id = ?
+            WHERE id = {placeholder}
             """,
             (user_id,),
         ).fetchone()

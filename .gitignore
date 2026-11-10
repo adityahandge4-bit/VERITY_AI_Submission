@@ -38,3 +38,14 @@ Thumbs.db
 *step3_backup*
 *auth-backup*
 *App.backup*
+
+# PostgreSQL migration backups
+pre_db_compat_backup_20261110/
+pre_postgres_code_backup/
+
+# Database unification backup
+pre_db_unification_backup_20261110/
+
+# Local migration backups
+pre_db_compat_backup_20261110/
+pre_postgres_code_backup/

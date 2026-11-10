@@ -6,3 +6,4 @@ python-docx
 PyJWT
 pwdlib[argon2]
 python-dotenv
+psycopg[binary]

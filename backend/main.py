@@ -46,6 +46,8 @@ app.add_middleware(
     "http://127.0.0.1:5177",
     "http://localhost:5179",
     "http://127.0.0.1:5179",
+    "http://localhost:5178",
+    "http://127.0.0.1:5178",
     "https://verity-ai-submission.vercel.app",
     "https://verity-ai-submission-git-feat-verity-premium-ui-pilgrims-pulse.vercel.app",
     "http://localhost:5180",

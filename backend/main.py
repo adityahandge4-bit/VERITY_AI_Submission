@@ -47,6 +47,8 @@ app.add_middleware(
     "http://localhost:5179",
     "http://127.0.0.1:5179",
     "https://verity-ai-submission.vercel.app",
+    "http://localhost:5180",
+    "http://127.0.0.1:5180",
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -3697,3 +3697,1225 @@ button:disabled {
 .review-field input::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }
+
+
+
+/* =========================================================
+   VARIETY AI — RESPONSIVE NAVIGATION + PREMIUM FINISH
+   App.jsx already provides the mobile menu state and markup.
+   These overrides keep every navigation label visible.
+========================================================= */
+
+.mobile-header {
+  display: none;
+}
+
+.mobile-menu-button {
+  display: none;
+}
+
+.mobile-sidebar-overlay {
+  display: none;
+}
+
+@media (min-width: 851px) {
+  .sidebar {
+    width: 276px;
+  }
+
+  .main-content {
+    width: calc(100% - 276px);
+    margin-left: 276px;
+  }
+
+  .mobile-header {
+    display: none;
+  }
+}
+
+/* Tablet and mobile: use a labelled slide-in navigation drawer. */
+@media (max-width: 850px) {
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    min-height: 68px;
+    width: 100%;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    border-bottom: 1px solid rgba(226, 226, 238, 0.9);
+    box-shadow: 0 8px 24px rgba(34, 27, 80, 0.06);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .mobile-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+  }
+
+  .mobile-header-brand>div:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-header-brand .brand-name {
+    color: #19172e;
+    font-family: "Manrope", sans-serif;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+  }
+
+  .mobile-header-brand .brand-subtitle {
+    color: #77748e;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .mobile-menu-button {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #e7e5f2;
+    border-radius: 13px;
+    background: linear-gradient(145deg, #ffffff, #f5f3ff);
+    color: #5547ce;
+    box-shadow: 0 5px 16px rgba(72, 59, 160, 0.09);
+    font-size: 23px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .mobile-menu-button:focus-visible,
+  .nav-item:focus-visible {
+    outline: 3px solid rgba(98, 84, 231, 0.3);
+    outline-offset: 3px;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 80;
+    width: min(310px, 88vw);
+    height: 100dvh;
+    min-height: 0;
+    padding: 22px 17px max(22px, env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #ffffff 0%, #f8f7ff 100%);
+    border-right: 1px solid rgba(226, 226, 238, 0.95);
+    box-shadow: 24px 0 70px rgba(25, 20, 70, 0.16);
+    transform: translateX(-105%);
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 240ms ease, visibility 240ms ease;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  /* Restore the labels hidden by the earlier 850px media rule. */
+  .brand-logo {
+    justify-content: flex-start;
+    padding: 0 10px 24px;
+  }
+
+  .brand-logo>div:last-child,
+  .workspace,
+  .nav-label,
+  .upgrade-card,
+  .settings-button span:last-child,
+  .user-card>div:nth-child(2),
+  .user-card>span:last-child {
+    display: initial;
+  }
+
+  .workspace {
+    display: block;
+  }
+
+  .nav-label {
+    display: block;
+  }
+
+  .upgrade-card {
+    display: block;
+  }
+
+  .settings-button span:last-child,
+  .user-card>div:nth-child(2) {
+    display: block;
+  }
+
+  .nav-item {
+    width: 100%;
+    min-height: 48px;
+    justify-content: flex-start;
+    gap: 13px;
+    padding: 12px 13px;
+    margin-bottom: 5px;
+    border-radius: 13px;
+    font-size: 13px;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .nav-item>span:not(.nav-icon) {
+    display: inline;
+  }
+
+  .nav-icon {
+    width: 23px;
+    flex: 0 0 23px;
+    font-size: 17px;
+  }
+
+  .nav-notification {
+    display: grid !important;
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+
+  .user-card {
+    justify-content: flex-start;
+    border-top: 1px solid #ededf3;
+  }
+
+  .mobile-sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: block;
+    background: rgba(17, 14, 39, 0.48);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 220ms ease, visibility 220ms ease;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+
+  .mobile-sidebar-overlay.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .main-content {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .topbar {
+    top: 68px;
+  }
+
+  .content {
+    width: 100%;
+    max-width: 1680px;
+    padding: clamp(20px, 3.5vw, 32px);
+  }
+
+  .footer {
+    padding: 0 clamp(20px, 3.5vw, 32px) 24px;
+  }
+}
+
+/* Small-screen layout refinements. */
+@media (max-width: 650px) {
+  .mobile-header {
+    min-height: 64px;
+    padding: 9px 14px;
+  }
+
+  .mobile-menu-button {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+  }
+
+  .topbar {
+    height: 58px;
+    min-height: 58px;
+    padding: 0 14px;
+  }
+
+  .content {
+    padding: 18px 14px 24px;
+  }
+
+  .hero {
+    min-height: 0;
+    padding: 28px 22px;
+    border-radius: 20px;
+  }
+
+  .hero h1 {
+    max-width: 100%;
+    font-size: clamp(32px, 9vw, 42px);
+    line-height: 1.04;
+  }
+
+  .hero-copy>p {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .metric-card {
+    min-height: 96px;
+    padding: 15px;
+  }
+
+  .panel {
+    border-radius: 18px;
+  }
+
+  .insight-panel,
+  .health-panel {
+    padding: 19px;
+  }
+
+  .footer {
+    padding: 0 14px 22px;
+  }
+}
+
+/* Larger, clearer typography and a more deliberate desktop hierarchy. */
+@media (min-width: 851px) {
+  .topbar {
+    min-height: 78px;
+    padding-left: clamp(28px, 3vw, 48px);
+    padding-right: clamp(28px, 3vw, 48px);
+  }
+
+  .content {
+    padding: clamp(30px, 3vw, 46px) clamp(28px, 3vw, 48px) 30px;
+  }
+
+  .hero {
+    min-height: 370px;
+    padding: clamp(42px, 4vw, 60px);
+    border-radius: 30px;
+    box-shadow: 0 28px 80px rgba(46, 35, 100, 0.09);
+  }
+
+  .hero-copy>p {
+    font-size: 14px;
+  }
+
+  .metric-grid,
+  .dashboard-grid {
+    gap: 16px;
+  }
+
+  .metric-card {
+    min-height: 112px;
+    padding: 19px;
+  }
+
+  .metric-label {
+    font-size: 9px;
+  }
+
+  .panel {
+    box-shadow: 0 16px 48px rgba(44, 35, 94, 0.055);
+  }
+}
+
+/* Prevent accidental horizontal overflow on narrow devices. */
+html,
+body,
+#root,
+.app-shell {
+  width: 100%;
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================================
+   VARIETY AI — PREMIUM ENTERPRISE UI
+   Dark charcoal • Electric violet • Soft lavender
+   Desktop + Tablet + Mobile
+========================================================== */
+
+/* 1. PREMIUM DESIGN TOKENS */
+
+:root {
+  color-scheme: dark;
+
+  --ink: #F4F0FF;
+  --muted: #B8B1C9;
+  --soft: #8D859F;
+
+  --canvas: #17151F;
+  --sidebar-bg: #17141F;
+
+  --surface: #211E2B;
+  --surface-raised: #292333;
+  --surface-hover: #352D43;
+  --surface-input: #1C1926;
+
+  --purple: #8B5CF6;
+  --purple-dark: #7444DE;
+  --purple-light: #C4B5FD;
+  --violet: #A78BFA;
+
+  --green: #4ADEA1;
+  --orange: #FBBF67;
+  --red: #FB7185;
+
+  --border: rgba(226, 219, 255, 0.11);
+  --panel: rgba(41, 35, 51, 0.88);
+
+  --shadow:
+    0 18px 55px rgba(0, 0, 0, 0.24);
+
+  --radius: 20px;
+}
+
+/* 2. GLOBAL FOUNDATION */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--canvas);
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+
+  background:
+    radial-gradient(ellipse at 75% 0%,
+      rgba(139, 92, 246, 0.12),
+      transparent 38%),
+    #17151F !important;
+
+  color: var(--ink) !important;
+
+  font-family: "DM Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root,
+.app-shell {
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  color: var(--ink);
+}
+
+/* 3. SIDEBAR */
+
+.sidebar {
+  background:
+    linear-gradient(180deg,
+      #211D2B 0%,
+      #17141F 100%) !important;
+
+  border-right: 1px solid var(--border) !important;
+
+  box-shadow:
+    12px 0 40px rgba(0, 0, 0, 0.18);
+}
+
+.brand-logo strong {
+  color: #FFFFFF !important;
+}
+
+.brand-logo>div:last-child span {
+  color: var(--purple-light) !important;
+}
+
+.brand-mark {
+  background:
+    linear-gradient(135deg,
+      #7444DE,
+      #8B5CF6 55%,
+      #C4B5FD) !important;
+
+  box-shadow:
+    0 8px 28px rgba(139, 92, 246, 0.30) !important;
+}
+
+.workspace-label,
+.nav-label {
+  color: #958CA8 !important;
+}
+
+.workspace-card {
+  background: rgba(255, 255, 255, 0.035) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px;
+}
+
+.workspace-card strong {
+  color: var(--ink) !important;
+}
+
+.workspace-card span {
+  color: var(--muted);
+}
+
+.workspace-avatar {
+  background: rgba(139, 92, 246, 0.18) !important;
+  color: var(--purple-light) !important;
+}
+
+/* 4. NAVIGATION */
+
+.nav-item {
+  color: var(--muted) !important;
+  border: 1px solid transparent !important;
+  border-radius: 12px;
+
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.nav-item:hover {
+  color: #FFFFFF !important;
+  background: rgba(139, 92, 246, 0.11) !important;
+  border-color: rgba(167, 139, 250, 0.16) !important;
+}
+
+.nav-item.active {
+  color: #FFFFFF !important;
+
+  background:
+    linear-gradient(100deg,
+      rgba(139, 92, 246, 0.25),
+      rgba(139, 92, 246, 0.09)) !important;
+
+  border-color: rgba(196, 181, 253, 0.20) !important;
+
+  box-shadow:
+    inset 3px 0 0 #A78BFA;
+}
+
+.nav-icon {
+  color: var(--purple-light);
+}
+
+.nav-notification {
+  color: #FFFFFF !important;
+  background: var(--purple) !important;
+}
+
+/* 5. SIDEBAR FOOTER */
+
+.upgrade-card {
+  background:
+    linear-gradient(145deg,
+      rgba(139, 92, 246, 0.20),
+      #292333) !important;
+
+  border: 1px solid rgba(196, 181, 253, 0.17) !important;
+  border-radius: 17px;
+}
+
+.upgrade-card strong,
+.upgrade-card p,
+.upgrade-card small {
+  color: var(--ink) !important;
+}
+
+.settings-button {
+  color: var(--muted) !important;
+}
+
+.settings-button:hover {
+  color: white !important;
+  background: var(--surface-hover) !important;
+}
+
+.user-card {
+  border-color: var(--border) !important;
+}
+
+.user-card strong {
+  color: var(--ink) !important;
+}
+
+.user-card span {
+  color: var(--muted);
+}
+
+/* 6. MAIN CONTENT */
+
+.main-content {
+  min-width: 0;
+  background: transparent !important;
+}
+
+.content {
+  min-width: 0;
+  color: var(--ink);
+}
+
+.content h1,
+.content h2,
+.content h3,
+.content h4 {
+  color: #F4F0FF;
+}
+
+.content p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* 7. TOP NAVIGATION BAR */
+
+.topbar {
+  background: rgba(23, 21, 31, 0.90) !important;
+  border-bottom: 1px solid var(--border) !important;
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.breadcrumb,
+.breadcrumb strong {
+  color: var(--ink) !important;
+}
+
+.breadcrumb span {
+  color: var(--muted) !important;
+}
+
+.search-box {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px;
+}
+
+.search-box input {
+  color: var(--ink) !important;
+  background: transparent !important;
+}
+
+.search-box input::placeholder {
+  color: var(--soft) !important;
+}
+
+.search-box kbd {
+  color: var(--muted);
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+
+.icon-button {
+  color: var(--muted) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.icon-button:hover {
+  color: #FFFFFF !important;
+  background: var(--surface-hover) !important;
+  border-color: var(--purple) !important;
+}
+
+/* 8. HERO SECTION */
+
+.hero {
+  color: var(--ink) !important;
+
+  background:
+    radial-gradient(circle at 85% 20%,
+      rgba(139, 92, 246, 0.23),
+      transparent 38%),
+    linear-gradient(125deg,
+      #211D2D,
+      #292333 55%,
+      #332644) !important;
+
+  border: 1px solid rgba(196, 181, 253, 0.17) !important;
+
+  box-shadow:
+    0 25px 70px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035) !important;
+}
+
+.hero h1 {
+  color: #FFFFFF !important;
+  letter-spacing: -0.045em;
+}
+
+.hero-copy>p {
+  color: #C6BED7 !important;
+}
+
+.eyebrow {
+  color: var(--purple-light) !important;
+}
+
+/* 9. DASHBOARD CARDS */
+
+.panel,
+.metric-card,
+.insight-panel,
+.health-panel,
+.finding-card {
+  color: var(--ink) !important;
+  background: var(--surface) !important;
+
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius);
+
+  box-shadow:
+    0 14px 42px rgba(0, 0, 0, 0.18) !important;
+}
+
+.panel:hover,
+.metric-card:hover,
+.finding-card:hover {
+  border-color: rgba(167, 139, 250, 0.30) !important;
+}
+
+.metric-card {
+  background:
+    linear-gradient(145deg,
+      #292333,
+      #211E2B) !important;
+}
+
+.metric-card strong,
+.metric-value,
+.metric-number {
+  color: #FFFFFF !important;
+}
+
+.metric-label {
+  color: var(--muted) !important;
+}
+
+.insight-panel,
+.health-panel {
+  background: var(--surface-raised) !important;
+}
+
+/* 10. BUTTONS */
+
+.primary-button {
+  color: #FFFFFF !important;
+
+  background:
+    linear-gradient(135deg,
+      #8B5CF6,
+      #7444DE) !important;
+
+  border: 1px solid rgba(196, 181, 253, 0.25) !important;
+  border-radius: 12px;
+
+  box-shadow:
+    0 8px 24px rgba(139, 92, 246, 0.23) !important;
+
+  transition: 180ms ease;
+}
+
+.primary-button:hover {
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 12px 30px rgba(139, 92, 246, 0.35) !important;
+}
+
+.secondary-button,
+.ghost-button {
+  color: var(--ink) !important;
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px;
+}
+
+.secondary-button:hover,
+.ghost-button:hover {
+  background: var(--surface-hover) !important;
+}
+
+/* 11. INPUTS AND FORMS */
+
+input,
+textarea,
+select {
+  color: var(--ink);
+  background: var(--surface-input);
+  border-color: var(--border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--soft);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--purple) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(139, 92, 246, 0.14);
+}
+
+/* 12. TABLES */
+
+table {
+  border-color: var(--border);
+}
+
+th {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+td {
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+tr:hover td {
+  background: rgba(139, 92, 246, 0.045);
+}
+
+/* 13. MOBILE HEADER */
+
+.mobile-header {
+  background: rgba(20, 18, 28, 0.97) !important;
+  border-bottom: 1px solid var(--border) !important;
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.mobile-header-brand .brand-name {
+  color: #FFFFFF !important;
+}
+
+.mobile-header-brand .brand-subtitle {
+  color: var(--muted) !important;
+}
+
+.mobile-menu-button {
+  color: #FFFFFF !important;
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+/* 14. MOBILE NAVIGATION DRAWER */
+
+@media (max-width: 850px) {
+  .sidebar {
+    background:
+      linear-gradient(180deg,
+        #211D2B,
+        #17141F) !important;
+
+    border-right: 1px solid var(--border) !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .nav-item {
+    display: flex !important;
+    width: 100%;
+    min-height: 49px;
+
+    justify-content: flex-start;
+    align-items: center;
+    gap: 13px;
+
+    padding: 12px 13px;
+    white-space: normal !important;
+
+    color: var(--muted) !important;
+  }
+
+  .nav-item>span:not(.nav-icon) {
+    display: inline !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .nav-item.active {
+    color: #FFFFFF !important;
+  }
+
+  .nav-icon {
+    flex: 0 0 23px;
+  }
+
+  .nav-notification {
+    margin-left: auto;
+  }
+
+  .mobile-sidebar-overlay.open {
+    background: rgba(10, 8, 20, 0.65);
+    backdrop-filter: blur(4px);
+  }
+
+  .main-content {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .topbar {
+    top: 68px;
+  }
+
+  .content {
+    width: 100%;
+    padding: 24px;
+  }
+}
+
+/* 15. SMALL MOBILE SCREENS */
+
+@media (max-width: 600px) {
+  .mobile-header {
+    min-height: 64px;
+    padding: 9px 14px;
+  }
+
+  .mobile-menu-button {
+    width: 42px;
+    height: 42px;
+  }
+
+  .topbar {
+    min-height: 58px;
+    padding: 0 14px;
+  }
+
+  .content {
+    padding: 18px 14px 25px;
+  }
+
+  .hero {
+    min-height: auto;
+    padding: 27px 21px;
+    border-radius: 19px;
+  }
+
+  .hero h1 {
+    font-size: clamp(29px, 8vw, 39px);
+    line-height: 1.12;
+  }
+
+  .hero-copy>p {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .metric-card {
+    min-width: 0;
+    padding: 16px;
+  }
+
+  .panel,
+  .finding-card {
+    min-width: 0;
+    padding: 19px;
+  }
+
+  .content table {
+    min-width: 620px;
+  }
+
+  .content {
+    overflow-wrap: anywhere;
+  }
+
+  .footer {
+    padding: 0 14px 22px;
+  }
+}
+
+/* 16. DESKTOP REFINEMENTS */
+
+@media (min-width: 851px) {
+  .sidebar {
+    width: 276px;
+  }
+
+  .main-content {
+    width: calc(100% - 276px);
+    margin-left: 276px;
+  }
+
+  .topbar {
+    min-height: 78px;
+  }
+
+  .content {
+    padding: clamp(30px, 3vw, 48px);
+  }
+
+  .hero {
+    min-height: 370px;
+    border-radius: 28px;
+  }
+
+  .metric-card {
+    min-height: 112px;
+  }
+}
+
+/* 17. RESPONSIVE SAFETY */
+
+html,
+body,
+#root,
+.app-shell {
+  max-width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  max-width: 100%;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--purple-light);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==========================================================
+   VARIETY AI — MOBILE DRAWER RESTORATION
+   Fixes legacy collapsed-sidebar rules
+========================================================== */
+
+@media (max-width: 850px) {
+
+  /* Full labelled navigation drawer */
+  .sidebar {
+    width: min(310px, 88vw) !important;
+    padding: 22px 17px max(22px, env(safe-area-inset-bottom)) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-105%);
+    transition:
+      transform 260ms ease,
+      visibility 260ms ease;
+  }
+
+  .sidebar.mobile-open {
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateX(0) !important;
+  }
+
+  /* Restore complete brand */
+  .sidebar .brand-logo {
+    justify-content: flex-start !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .sidebar .brand-logo>div:last-child {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Restore workspace */
+  .sidebar .workspace {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .sidebar .workspace-card {
+    display: flex !important;
+  }
+
+  /* Restore section heading */
+  .sidebar .nav-label {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Restore navigation names */
+  .sidebar .nav-item {
+    display: flex !important;
+    width: 100% !important;
+    min-height: 49px;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 13px !important;
+    padding: 12px 13px !important;
+    white-space: normal !important;
+  }
+
+  .sidebar .nav-item>span:not(.nav-icon) {
+    display: inline !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .sidebar .nav-icon {
+    display: inline-flex !important;
+    flex: 0 0 23px;
+    justify-content: center;
+  }
+
+  .sidebar .nav-notification {
+    display: inline-flex !important;
+    margin-left: auto;
+  }
+
+  /* Restore footer and user details */
+  .sidebar .upgrade-card {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  .sidebar .settings-button span:last-child {
+    display: inline !important;
+  }
+
+  .sidebar .user-card>div:nth-child(2),
+  .sidebar .user-card>span:last-child {
+    display: flex !important;
+    visibility: visible !important;
+  }
+
+  /* Main application uses full mobile width */
+  .main-content {
+    width: 100% !important;
+    margin-left: 0 !important;
+    min-width: 0 !important;
+  }
+
+  .mobile-sidebar-overlay.open {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: rgba(10, 8, 20, 0.68);
+    backdrop-filter: blur(4px);
+  }
+}
+
+@media (max-width: 600px) {
+  .sidebar {
+    width: min(300px, 88vw) !important;
+  }
+
+  .sidebar .nav-item {
+    min-height: 47px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 850px) {
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin-top: 0 !important;
+    padding-top: 20px !important;
+    overflow-y: auto !important;
+    z-index: 100 !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+}

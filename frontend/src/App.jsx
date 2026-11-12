@@ -310,21 +310,25 @@ function App() {
     setBackendLoading(true);
     setBackendError("");
 
-    const fetchJson = async (path) => {
-      const response = await fetch(`${API_BASE_URL}${path}`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+   
+const fetchJson = async (path) => {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
 
-      if (!response.ok) {
-        throw new Error(
-          data.detail || `Request failed: ${path} (${response.status})`
-        );
-      }
+  const data = await response.json().catch(() => ({}));
 
-      return data;
-    };
+  if (!response.ok) {
+    throw new Error(
+      data.detail || `Request failed: ${path} (${response.status})`
+    );
+  }
+
+  return data;
+};
+
 
     const results = await Promise.allSettled([
       fetchJson("/reviews"),

@@ -305,6 +305,8 @@ function App() {
   const [backendError, setBackendError] = useState("");
   const [revisedContent, setRevisedContent] =
     useState("");
+  const [activePage, setActivePage] = useState("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const loadBackendData = async () => {
     setBackendLoading(true);
@@ -484,7 +486,6 @@ const fetchJson = async (path) => {
     }
   });
 
-  const [activePage, setActivePage] = useState("dashboard");
   const [content, setContent] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
@@ -5256,7 +5257,44 @@ const fetchJson = async (path) => {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+    <header className="mobile-header">
+  <div className="mobile-header-brand">
+    <div className="brand-mark">
+      <span>V</span>
+    </div>
+
+    <div>
+      <strong className="brand-name">
+        VARIETY AI
+      </strong>
+
+      <span className="brand-subtitle">
+        AI Review Studio
+      </span>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    className="mobile-menu-button"
+    aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}
+    aria-expanded={mobileMenuOpen}
+    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+  >
+    {mobileMenuOpen ? "×" : "☰"}
+  </button>
+</header>
+<div
+  className={`mobile-sidebar-overlay ${
+    mobileMenuOpen ? "open" : ""
+  }`}
+  onClick={() => setMobileMenuOpen(false)}
+/>
+      <aside
+  className={`sidebar ${
+    mobileMenuOpen ? "mobile-open" : ""
+  }`}
+>
         <div className="brand-logo">
           <div className="brand-mark">
             <span>V</span>
@@ -5313,11 +5351,10 @@ const fetchJson = async (path) => {
                   ? "active"
                   : ""
                   }`}
-                onClick={() =>
-                  setActivePage(
-                    item.id
-                  )
-                }
+               onClick={() => {
+                                     setActivePage(item.id);
+                                        setMobileMenuOpen(false);
+                                     }}
               >
                 <span className="nav-icon">
                   {item.icon}

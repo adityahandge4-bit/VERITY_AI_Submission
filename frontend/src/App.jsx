@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
@@ -312,24 +313,24 @@ function App() {
     setBackendLoading(true);
     setBackendError("");
 
-   
-const fetchJson = async (path) => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
 
-  const data = await response.json().catch(() => ({}));
+    const fetchJson = async (path) => {
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
-  if (!response.ok) {
-    throw new Error(
-      data.detail || `Request failed: ${path} (${response.status})`
-    );
-  }
+      const data = await response.json().catch(() => ({}));
 
-  return data;
-};
+      if (!response.ok) {
+        throw new Error(
+          data.detail || `Request failed: ${path} (${response.status})`
+        );
+      }
+
+      return data;
+    };
 
 
     const results = await Promise.allSettled([
@@ -5257,240 +5258,241 @@ const fetchJson = async (path) => {
 
   return (
     <div className="app-shell">
-    <header className="mobile-header">
-  <div className="mobile-header-brand">
-    <div className="brand-mark">
-      <span>V</span>
-    </div>
-
-    <div>
-      <strong className="brand-name">
-        VARIETY AI
-      </strong>
-
-      <span className="brand-subtitle">
-        AI Review Studio
-      </span>
-    </div>
-  </div>
-
-  <button
-    type="button"
-    className="mobile-menu-button"
-    aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}
-    aria-expanded={mobileMenuOpen}
-    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-  >
-    {mobileMenuOpen ? "×" : "☰"}
-  </button>
-</header>
-<div
-  className={`mobile-sidebar-overlay ${
-    mobileMenuOpen ? "open" : ""
-  }`}
-  onClick={() => setMobileMenuOpen(false)}
-/>
-      <aside
-  className={`sidebar ${
-    mobileMenuOpen ? "mobile-open" : ""
-  }`}
->
-        <div className="brand-logo">
+      <header className="mobile-header">
+        <div className="mobile-header-brand">
           <div className="brand-mark">
             <span>V</span>
           </div>
 
           <div>
-            <strong>
-              VARIETY
+            <strong className="brand-name">
+              VARIETY AI
             </strong>
 
-            <span>
-              AI
+            <span className="brand-subtitle">
+              AI Review Studio
             </span>
           </div>
         </div>
 
-        <div className="workspace">
-          <span className="workspace-label">
-            WORKSPACE
-          </span>
-
-          <div className="workspace-card">
-            <div className="workspace-avatar">
-              A
+        <button
+          type="button"
+          className="mobile-menu-button"
+          aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          {mobileMenuOpen ? "×" : "☰"}
+        </button>
+      </header>
+      <div
+        className={`mobile-sidebar-overlay ${mobileMenuOpen ? "open" : ""
+          }`}
+        onClick={() => setMobileMenuOpen(false)}
+      />
+      {createPortal(
+        <aside
+          className={`sidebar ${mobileMenuOpen ? "mobile-open" : ""
+            }`}
+        >
+          <div className="brand-logo">
+            <div className="brand-mark">
+              <span>V</span>
             </div>
 
             <div>
               <strong>
-                Acme Corporation
+                VARIETY
               </strong>
 
               <span>
-                Enterprise workspace
+                AI
               </span>
             </div>
-
-            <span className="workspace-arrow">
-              ⌄
-            </span>
           </div>
-        </div>
 
-        <nav className="main-nav">
-          <span className="nav-label">
-            INTELLIGENCE
-          </span>
+          <div className="workspace">
+            <span className="workspace-label">
+              WORKSPACE
+            </span>
 
-          {navItems.map(
-            (item) => (
-              <button
-                key={item.id}
-                className={`nav-item ${activePage ===
-                  item.id
-                  ? "active"
-                  : ""
-                  }`}
-               onClick={() => {
-                                     setActivePage(item.id);
-                                        setMobileMenuOpen(false);
-                                     }}
-              >
-                <span className="nav-icon">
-                  {item.icon}
-                </span>
+            <div className="workspace-card">
+              <div className="workspace-avatar">
+                A
+              </div>
+
+              <div>
+                <strong>
+                  Acme Corporation
+                </strong>
 
                 <span>
-                  {item.label}
+                  Enterprise workspace
                 </span>
+              </div>
 
-                {item.id ===
-                  "review" && (
-                    <span className="nav-notification">
-                      {reviewResult &&
-                        reviewResult.review_status !==
-                        "ERROR"
-                        ? reviewResult.total_violations ||
-                        0
-                        : 3}
-                    </span>
-                  )}
-
-                {item.id ===
-                  "drift" &&
-                  overallHealthAlertCount(
-                    healthAlerts
-                  ) >
-                  0 && (
-                    <span className="nav-notification">
-                      {overallHealthAlertCount(
-                        healthAlerts
-                      )}
-                    </span>
-                  )}
-
-                {/* STAGE 9 GOVERNANCE BADGE */}
-
-                {item.id ===
-                  "governance" &&
-                  governanceMetrics.active >
-                  0 && (
-                    <span className="nav-notification governance-nav-notification">
-                      {governanceMetrics.active}
-                    </span>
-                  )}
-              </button>
-            )
-          )}
-        </nav>
-
-        <div className="sidebar-bottom">
-          <div className="upgrade-card">
-            <div className="upgrade-icon">
-              ✦
-            </div>
-
-            <strong>
-              VARIETY Intelligence
-            </strong>
-
-            <p>
-              Advanced brand protection is
-              active.
-            </p>
-
-            <div className="upgrade-progress">
-              <span
-                style={{
-                  width: `${currentHealth.score}%`,
-                }}
-              />
-            </div>
-
-            <small>
-              {currentHealth.score}%
-              health score
-            </small>
-          </div>
-
-          <button className="settings-button">
-            <span>⚙</span>
-            Settings
-          </button>
-
-          <div className="user-card">
-            <div className="user-avatar">
-              AS
-            </div>
-
-            <div>
-              <strong>
-                Aditya Sandeep
-              </strong>
-
-              <span>
-                Administrator
+              <span className="workspace-arrow">
+                ⌄
               </span>
             </div>
+          </div>
 
-            <span>
-              ⋮
+          <nav className="main-nav">
+            <span className="nav-label">
+              INTELLIGENCE
             </span>
-          </div>
-        </div>
-        <div style={{
-          padding: "16px",
-          marginTop: "16px",
-          borderTop: "1px solid #303a52"
-        }}>
-          <div style={{
-            color: "#aab5ca",
-            fontSize: "13px",
-            marginBottom: "10px",
-            overflowWrap: "anywhere"
-          }}>
-            Signed in as {currentUser?.name || currentUser?.email}
-            <br />
-            Role: {currentUser?.role || "User"}
-          </div>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "8px",
-              border: "1px solid #52607a",
-              background: "transparent",
-              color: "#ffffff",
-              cursor: "pointer"
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
-      </aside>
+            {navItems.map(
+              (item) => (
+                <button
+                  key={item.id}
+                  className={`nav-item ${activePage ===
+                    item.id
+                    ? "active"
+                    : ""
+                    }`}
+                  onClick={() => {
+                    setActivePage(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <span className="nav-icon">
+                    {item.icon}
+                  </span>
+
+                  <span>
+                    {item.label}
+                  </span>
+
+                  {item.id ===
+                    "review" && (
+                      <span className="nav-notification">
+                        {reviewResult &&
+                          reviewResult.review_status !==
+                          "ERROR"
+                          ? reviewResult.total_violations ||
+                          0
+                          : 3}
+                      </span>
+                    )}
+
+                  {item.id ===
+                    "drift" &&
+                    overallHealthAlertCount(
+                      healthAlerts
+                    ) >
+                    0 && (
+                      <span className="nav-notification">
+                        {overallHealthAlertCount(
+                          healthAlerts
+                        )}
+                      </span>
+                    )}
+
+                  {/* STAGE 9 GOVERNANCE BADGE */}
+
+                  {item.id ===
+                    "governance" &&
+                    governanceMetrics.active >
+                    0 && (
+                      <span className="nav-notification governance-nav-notification">
+                        {governanceMetrics.active}
+                      </span>
+                    )}
+                </button>
+              )
+            )}
+          </nav>
+
+          <div className="sidebar-bottom">
+            <div className="upgrade-card">
+              <div className="upgrade-icon">
+                ✦
+              </div>
+
+              <strong>
+                VARIETY Intelligence
+              </strong>
+
+              <p>
+                Advanced brand protection is
+                active.
+              </p>
+
+              <div className="upgrade-progress">
+                <span
+                  style={{
+                    width: `${currentHealth.score}%`,
+                  }}
+                />
+              </div>
+
+              <small>
+                {currentHealth.score}%
+                health score
+              </small>
+            </div>
+
+            <button className="settings-button">
+              <span>⚙</span>
+              Settings
+            </button>
+
+            <div className="user-card">
+              <div className="user-avatar">
+                AS
+              </div>
+
+              <div>
+                <strong>
+                  Aditya Sandeep
+                </strong>
+
+                <span>
+                  Administrator
+                </span>
+              </div>
+
+              <span>
+                ⋮
+              </span>
+            </div>
+          </div>
+          <div style={{
+            padding: "16px",
+            marginTop: "16px",
+            borderTop: "1px solid #303a52"
+          }}>
+            <div style={{
+              color: "#aab5ca",
+              fontSize: "13px",
+              marginBottom: "10px",
+              overflowWrap: "anywhere"
+            }}>
+              Signed in as {currentUser?.name || currentUser?.email}
+              <br />
+              Role: {currentUser?.role || "User"}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                width: "100%",
+                padding: "10px",
+                borderRadius: "8px",
+                border: "1px solid #52607a",
+                background: "transparent",
+                color: "#ffffff",
+                cursor: "pointer"
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </aside>,
+        document.body
+      )}
 
       <main className="main-content">
         <header className="topbar">

@@ -49,3 +49,14 @@ pre_db_unification_backup_20261110/
 # Local migration backups
 pre_db_compat_backup_20261110/
 pre_postgres_code_backup/
+
+# Local database diagnostic scripts
+check_postgres_constraints.py
+check_postgres_data.py
+check_postgres_tables.py
+check_sqlite_data.py
+compare_database_counts.py
+compare_database_schema.py
+
+# Local CSS backup
+frontend/src/index-backup.css

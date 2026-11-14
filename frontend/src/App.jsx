@@ -1,10 +1,10 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import "./App.css";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 ).replace(/\/+$/, "");
-
 
 
 
@@ -281,7 +281,90 @@ function App() {
   const [accessToken, setAccessToken] = useState(
     () => sessionStorage.getItem("variety_access_token") || ""
   );
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  // PROFILE SETTINGS
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileSuccess, setProfileSuccess] = useState("");
+  // PASSWORD & LOGIN SECURITY
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  // ACTIVE LOGIN SESSIONS
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+  const [sessionsMessage, setSessionsMessage] = useState("");
+  const [revokingSessions, setRevokingSessions] = useState(false);
+
+  const passwordStrengthScore = [
+    newPassword.length >= 12,
+    /[a-z]/.test(newPassword),
+    /[A-Z]/.test(newPassword),
+    /[0-9]/.test(newPassword),
+    /[^A-Za-z0-9]/.test(newPassword),
+  ].filter(Boolean).length;
+
+  const passwordStrengthLabel =
+    !newPassword
+      ? ""
+      : passwordStrengthScore <= 2
+        ? "Weak"
+        : passwordStrengthScore <= 4
+          ? "Moderate"
+          : "Strong";
+
+
+  const defaultPreferences = {
+    in_app_enabled: true,
+    email_enabled: false,
+    browser_enabled: false,
+    review_alerts: true,
+    evidence_alerts: true,
+    security_alerts: true,
+    product_updates: false,
+  };
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    in_app_enabled: true,
+    email_enabled: false,
+    browser_enabled: false,
+    review_alerts: true,
+    evidence_alerts: true,
+    security_alerts: true,
+    product_updates: false,
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      setProfileName(currentUser.name || "");
+      setProfileEmail(currentUser.email || "");
+      setProfileError("");
+    }
+  }, [currentUser]);
+  useEffect(() => {
+    if (!profileSuccess) return;
+
+    const timer = setTimeout(() => {
+      setProfileSuccess("");
+    }, 30000);
+
+    return () => clearTimeout(timer);
+  }, [profileSuccess]);
+
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
@@ -307,8 +390,149 @@ function App() {
   const [revisedContent, setRevisedContent] =
     useState("");
   const [activePage, setActivePage] = useState("dashboard");
+  const [analyticsRange, setAnalyticsRange] = useState("all");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const loadNotifications = async () => {
+    if (!accessToken) return;
 
+    try {
+      const [notificationsResponse, unreadResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/notifications?limit=50`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }),
+
+        fetch(`${API_BASE_URL}/notifications/unread-count`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }),
+      ]);
+
+      if (!notificationsResponse.ok || !unreadResponse.ok) {
+        throw new Error("Unable to load notifications");
+      }
+
+      const notificationsData = await notificationsResponse.json();
+      const unreadData = await unreadResponse.json();
+
+      setNotifications(
+        Array.isArray(notificationsData)
+          ? notificationsData
+          : notificationsData.notifications || []
+      );
+
+      setUnreadNotificationCount(
+        unreadData.unread_count ?? 0
+      );
+
+    } catch (error) {
+      console.error("Notifications loading error:", error);
+    }
+  };
+  const loadNotificationPreferences = async () => {
+    if (!accessToken) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/notification-preferences`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to load notification preferences");
+      }
+
+      const preferences = await response.json();
+
+      setNotificationPreferences(preferences);
+    } catch (error) {
+      console.error(
+        "Notification preferences loading error:",
+        error
+      );
+    }
+  };
+  const saveNotificationPreferences = async (preferences) => {
+    if (!accessToken) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/notification-preferences`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(preferences),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to save notification preferences");
+      }
+
+      const data = await response.json();
+
+      console.log(data.message);
+    } catch (error) {
+      console.error(
+        "Notification preferences saving error:",
+        error
+      );
+
+      alert("Unable to save notification preferences. Please try again.");
+    }
+  };
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/notifications/${notificationId}/read`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to mark notification as read");
+      }
+
+      await loadNotifications();
+    } catch (error) {
+      console.error("Mark notification as read error:", error);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/notifications/read-all`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to mark all notifications as read");
+      }
+
+      await loadNotifications();
+    } catch (error) {
+      console.error("Mark all notifications as read error:", error);
+    }
+  };
   const loadBackendData = async () => {
     setBackendLoading(true);
     setBackendError("");
@@ -469,13 +693,211 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem("variety_access_token");
-    setAccessToken("");
-    setCurrentUser(null);
-    setLoginEmail("");
-    setLoginPassword("");
-    setAuthError("");
+  const handleLogout = async () => {
+    try {
+      if (accessToken) {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Backend logout error:", error);
+    } finally {
+      sessionStorage.removeItem("variety_access_token");
+      setAccessToken("");
+      setCurrentUser(null);
+      setLoginEmail("");
+      setLoginPassword("");
+      setAuthError("");
+      setActiveSessions([]);
+    }
+  };
+
+  const loadActiveSessions = async () => {
+    if (!accessToken) return;
+
+    setSessionsLoading(true);
+    setSessionsError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/sessions`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to load active sessions.");
+      }
+
+      setActiveSessions(data.sessions || []);
+    } catch (error) {
+      setSessionsError(error.message || "Unable to load active sessions.");
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const handleRevokeOtherSessions = async () => {
+    if (!accessToken) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to sign out all other active sessions?"
+    );
+
+    if (!confirmed) return;
+
+    setRevokingSessions(true);
+    setSessionsError("");
+    setSessionsMessage("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/auth/sessions/revoke-others`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Unable to revoke other sessions.");
+      }
+
+      setSessionsMessage(
+        data.message || "Other sessions have been signed out."
+      );
+
+      await loadActiveSessions();
+    } catch (error) {
+      setSessionsError(error.message || "Unable to revoke other sessions.");
+    } finally {
+      setRevokingSessions(false);
+    }
+  };
+
+  const handleProfileSave = async () => {
+    setProfileError("");
+    setProfileSuccess("");
+
+    const name = profileName.trim();
+    const email = profileEmail.trim();
+
+    if (!name || !email) {
+      setProfileError("Name and email are required.");
+      return;
+    }
+
+    setProfileSaving(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          name,
+          email,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to update your profile."
+        );
+      }
+
+      setCurrentUser(data);
+      setProfileName(data.name || "");
+      setProfileEmail(data.email || "");
+
+      // Display confirmation after successful saving
+      setProfileSuccess("Your profile was updated successfully.");
+    } catch (error) {
+      setProfileError(
+        error.message || "Something went wrong while saving."
+      );
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+
+  const handlePasswordChange = async () => {
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Please fill in all password fields.");
+      return;
+    }
+
+    if (newPassword.length < 12) {
+      setPasswordError(
+        "Your new password must contain at least 12 characters."
+      );
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Your new passwords do not match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/auth/change-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            current_password: currentPassword,
+            new_password: newPassword,
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to change your password."
+        );
+      }
+
+      setPasswordSuccess(
+        data.message || "Password changed successfully."
+      );
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+    } catch (error) {
+      setPasswordError(
+        error.message || "Something went wrong while changing your password."
+      );
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   const [reviewHistory, setReviewHistory] = useState(() => {
@@ -610,7 +1032,30 @@ function App() {
   useEffect(() => {
     if (accessToken && currentUser) {
       loadBackendData();
+      loadNotifications();
+      loadNotificationPreferences();
+      loadActiveSessions();
+    } else {
+      setNotifications([]);
+      setUnreadNotificationCount(0);
+      setActiveSessions([]);
     }
+  }, [accessToken, currentUser]);
+
+  // Automatically refresh notifications every 30 seconds
+
+  useEffect(() => {
+    if (!accessToken || !currentUser) {
+      return;
+    }
+
+    const notificationInterval = window.setInterval(() => {
+      loadNotifications();
+    }, 30000);
+
+    return () => {
+      window.clearInterval(notificationInterval);
+    };
   }, [accessToken, currentUser]);
 
   useEffect(() => {
@@ -1328,6 +1773,8 @@ function App() {
 
       setReviewResult(data);
 
+      await loadNotifications();
+
       const high = Number(
         data.risk_summary?.high || 0
       );
@@ -1469,6 +1916,69 @@ function App() {
 
       return latest - previous;
     }, [healthHistory]);
+
+  /* ============================================================
+  COMMAND CENTER — BRAND INTELLIGENCE ANALYTICS
+  ============================================================ */
+
+  const analyticsHistory = useMemo(() => {
+    const sorted = [...healthHistory]
+      .filter((item) => item.timestamp && Number.isFinite(Number(item.score)))
+      .sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() -
+          new Date(b.timestamp).getTime()
+      );
+
+    if (analyticsRange === "all") {
+      return sorted;
+    }
+
+    const days = analyticsRange === "30d" ? 30 : 90;
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    return sorted.filter(
+      (item) => new Date(item.timestamp).getTime() >= cutoff
+    );
+  }, [healthHistory, analyticsRange]);
+
+  const analyticsRisk = useMemo(() => {
+    const activeFindings = governanceItems.filter(
+      (item) =>
+        item.status !== "RESOLVED" &&
+        item.status !== "APPROVED"
+    );
+
+    return {
+      high: activeFindings.filter(
+        (item) => item.severity === "high"
+      ).length,
+      medium: activeFindings.filter(
+        (item) => item.severity === "medium"
+      ).length,
+      low: activeFindings.filter(
+        (item) => item.severity === "low"
+      ).length,
+    };
+  }, [governanceItems]);
+
+  const analyticsEvidence = useMemo(() => {
+    const total = evidenceItems.length;
+
+    const verified = evidenceItems.filter(
+      (item) => item.status === "Verified"
+    ).length;
+
+    return {
+      total,
+      verified,
+      pending: total - verified,
+      percentage:
+        total > 0
+          ? Math.round((verified / total) * 100)
+          : 0,
+    };
+  }, [evidenceItems]);
 
   /* ============================================================
      STAGE 9 — GOVERNANCE METRICS
@@ -1890,6 +2400,302 @@ function App() {
             </div>
           </div>
         </section>
+
+        {/* BRAND INTELLIGENCE ANALYTICS */}
+
+        <section className="analytics-section">
+          <div className="analytics-heading">
+            <div>
+              <span className="panel-kicker">
+                PERFORMANCE INTELLIGENCE
+              </span>
+              <h2>Brand intelligence analytics</h2>
+              <p>
+                Track saved brand-health snapshots, active findings,
+                and evidence verification.
+              </p>
+            </div>
+
+            <div className="analytics-filters">
+              <button
+                className={analyticsRange === "30d" ? "active" : ""}
+                onClick={() => setAnalyticsRange("30d")}
+              >
+                30 days
+              </button>
+
+              <button
+                className={analyticsRange === "90d" ? "active" : ""}
+                onClick={() => setAnalyticsRange("90d")}
+              >
+                90 days
+              </button>
+
+              <button
+                className={analyticsRange === "all" ? "active" : ""}
+                onClick={() => setAnalyticsRange("all")}
+              >
+                All history
+              </button>
+            </div>
+          </div>
+
+          <div className="analytics-grid">
+            <div className="panel analytics-chart-panel">
+              <div className="analytics-card-heading">
+                <div>
+                  <span className="panel-kicker">BRAND TRUST</span>
+                  <h3>Health performance</h3>
+                </div>
+
+                <span className="analytics-live-tag">
+                  {analyticsHistory.length} SNAPSHOTS
+                </span>
+              </div>
+
+              {analyticsHistory.length > 0 ? (
+                <>
+                  <div className="analytics-chart">
+                    <svg
+                      viewBox="0 0 600 190"
+                      role="img"
+                      aria-label="Brand health score history"
+                      preserveAspectRatio="none"
+                    >
+                      {[25, 65, 105, 145].map((y) => (
+                        <line
+                          key={y}
+                          x1="30"
+                          y1={y}
+                          x2="570"
+                          y2={y}
+                          className="analytics-grid-line"
+                        />
+                      ))}
+
+                      <polyline
+                        points={(() => {
+                          const values = analyticsHistory.map(
+                            (item) => Number(item.score) || 0
+                          );
+
+                          const min = Math.min(...values);
+                          const max = Math.max(...values);
+                          const spread = Math.max(max - min, 5);
+
+                          return values
+                            .map((value, index) => {
+                              const x =
+                                values.length === 1
+                                  ? 300
+                                  : 30 +
+                                  (index / (values.length - 1)) * 540;
+
+                              const y =
+                                145 -
+                                ((value - (min - 3)) / (spread + 6)) * 120;
+
+                              return `${x},${y}`;
+                            })
+                            .join(" ");
+                        })()}
+                        className="analytics-line"
+                      />
+
+                      {analyticsHistory.map((item, index) => {
+                        const values = analyticsHistory.map(
+                          (entry) => Number(entry.score) || 0
+                        );
+
+                        const min = Math.min(...values);
+                        const max = Math.max(...values);
+                        const spread = Math.max(max - min, 5);
+
+                        const x =
+                          values.length === 1
+                            ? 300
+                            : 30 +
+                            (index / (values.length - 1)) * 540;
+
+                        const y =
+                          145 -
+                          ((Number(item.score) - (min - 3)) /
+                            (spread + 6)) *
+                          120;
+
+                        return (
+                          <circle
+                            key={item.id ?? index}
+                            cx={x}
+                            cy={y}
+                            r="5"
+                            className="analytics-point"
+                          />
+                        );
+                      })}
+                    </svg>
+                  </div>
+
+                  <div className="analytics-chart-footer">
+                    <span>
+                      {new Date(
+                        analyticsHistory[0].timestamp
+                      ).toLocaleDateString()}
+                    </span>
+
+                    <strong>
+                      Latest score:{" "}
+                      {Number(
+                        analyticsHistory[
+                          analyticsHistory.length - 1
+                        ].score
+                      ) || 0}
+                      /100
+                    </strong>
+
+                    <span>
+                      {new Date(
+                        analyticsHistory[
+                          analyticsHistory.length - 1
+                        ].timestamp
+                      ).toLocaleDateString()}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="analytics-empty">
+                  <span>◈</span>
+                  <strong>No snapshots in this period</strong>
+                  <p>
+                    Complete a brand review or select another date range
+                    to see saved health performance.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="panel analytics-risk-panel">
+              <div className="analytics-card-heading">
+                <div>
+                  <span className="panel-kicker">RISK INTELLIGENCE</span>
+                  <h3>Active findings</h3>
+                </div>
+                <span className="analytics-live-tag">LIVE DATA</span>
+              </div>
+
+              <div className="risk-total">
+                <strong>
+                  {analyticsRisk.high +
+                    analyticsRisk.medium +
+                    analyticsRisk.low}
+                </strong>
+                <span>Active findings</span>
+              </div>
+
+              {[
+                {
+                  label: "High risk",
+                  value: analyticsRisk.high,
+                  className: "high",
+                },
+                {
+                  label: "Medium risk",
+                  value: analyticsRisk.medium,
+                  className: "medium",
+                },
+                {
+                  label: "Low risk",
+                  value: analyticsRisk.low,
+                  className: "low",
+                },
+              ].map((risk) => {
+                const total =
+                  analyticsRisk.high +
+                  analyticsRisk.medium +
+                  analyticsRisk.low;
+
+                const percentage =
+                  total > 0
+                    ? (risk.value / total) * 100
+                    : 0;
+
+                return (
+                  <div className="risk-stat" key={risk.label}>
+                    <div className="risk-stat-heading">
+                      <span>{risk.label}</span>
+                      <strong>{risk.value}</strong>
+                    </div>
+
+                    <div className="risk-track">
+                      <div
+                        className={`risk-fill ${risk.className}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+
+              <button
+                className="analytics-link"
+                onClick={() => setActivePage("governance")}
+              >
+                Review governance findings →
+              </button>
+            </div>
+
+            <div className="panel analytics-evidence-panel">
+              <div className="analytics-card-heading">
+                <div>
+                  <span className="panel-kicker">
+                    EVIDENCE INTELLIGENCE
+                  </span>
+                  <h3>Evidence verification</h3>
+                </div>
+                <span className="analytics-live-tag">LIVE DATA</span>
+              </div>
+
+              <div className="evidence-score">
+                <div
+                  className="evidence-score-ring"
+                  style={{
+                    "--evidence-progress": `${analyticsEvidence.percentage}%`,
+                  }}
+                >
+                  <div>
+                    <strong>{analyticsEvidence.percentage}%</strong>
+                    <span>Verified</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="evidence-breakdown">
+                <div>
+                  <span>Verified evidence</span>
+                  <strong>{analyticsEvidence.verified}</strong>
+                </div>
+
+                <div>
+                  <span>Awaiting review</span>
+                  <strong>{analyticsEvidence.pending}</strong>
+                </div>
+
+                <div>
+                  <span>Total evidence items</span>
+                  <strong>{analyticsEvidence.total}</strong>
+                </div>
+              </div>
+
+              <button
+                className="analytics-link"
+                onClick={() => setActivePage("evidence")}
+              >
+                Open Evidence Intelligence →
+              </button>
+            </div>
+          </div>
+        </section>
+
 
         <section className="panel reviews-panel">
           <div className="panel-header">
@@ -4959,6 +5765,485 @@ function App() {
       case "history":
         return renderReviewHistory();
 
+
+      case "settings":
+        return (
+          <div className="page-section settings-page">
+            <div className="page-heading">
+              <div>
+                <span className="eyebrow">
+                  WORKSPACE CONTROL
+                </span>
+
+                <h1>Settings & Preferences</h1>
+
+                <p>
+                  Manage your account information and
+                  personal workspace identity.
+                </p>
+              </div>
+
+              <div className="studio-status">
+                <span className="pulse-dot" />
+                Account connected
+              </div>
+            </div>
+
+            <div className="settings-profile-layout">
+              <div className="panel settings-profile-card">
+                <div className="panel-header">
+                  <div>
+                    <span className="panel-kicker">
+                      ACCOUNT PROFILE
+                    </span>
+
+                    <h2>Personal information</h2>
+                  </div>
+
+                  <span className="ai-chip">
+                    ✦ ACCOUNT
+                  </span>
+                </div>
+
+                <div className="settings-identity">
+                  <div className="settings-avatar">
+                    {(currentUser?.name || "U")
+                      .trim()
+                      .charAt(0)
+                      .toUpperCase()}
+                  </div>
+
+                  <div>
+                    <h3>{currentUser?.name || "User"}</h3>
+                    <p>{currentUser?.email || "No email available"}</p>
+                    <span className="status-pill success">
+                      Active account
+                    </span>
+                  </div>
+                </div>
+
+                <form
+                  className="settings-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    handleProfileSave();
+                  }}
+                >
+                  <div className="review-field">
+                    <label htmlFor="profile-name">
+                      Full name
+                    </label>
+
+                    <input
+                      id="profile-name"
+                      type="text"
+                      value={profileName}
+                      maxLength={100}
+                      required
+                      onChange={(event) => {
+                        setProfileName(event.target.value);
+                        setProfileError("");
+                        setProfileSuccess("");
+                      }}
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+
+                  <div className="review-field">
+                    <label htmlFor="profile-email">
+                      Email address
+                    </label>
+
+                    <input
+                      id="profile-email"
+                      type="email"
+                      value={profileEmail}
+                      maxLength={254}
+                      required
+                      onChange={(event) => {
+                        setProfileEmail(event.target.value);
+                        setProfileError("");
+                        setProfileSuccess("");
+                      }}
+                      placeholder="Enter your email address"
+                    />
+                  </div>
+
+                  {profileError && (
+                    <div className="settings-message error" role="alert">
+                      {profileError}
+                    </div>
+                  )}
+
+                  {profileSuccess && (
+                    <div
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        padding: "14px 16px",
+                        marginTop: "12px",
+                        marginBottom: "12px",
+                        borderRadius: "10px",
+                        background: "rgba(16, 185, 129, 0.15)",
+                        border: "1px solid rgba(52, 211, 153, 0.4)",
+                        color: "#6EE7B7",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        opacity: 1,
+                        visibility: "visible"
+                      }}
+                      role="status"
+                    >
+                      ✓ {profileSuccess}
+                    </div>
+                  )}
+
+                  <div className="settings-save-row">
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={profileSaving}
+                    >
+                      {profileSaving
+                        ? "Saving changes..."
+                        : "Save Profile Changes"}
+                      <span>→</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div className="settings-side-column">
+                <div className="panel settings-account-card">
+                  <span className="panel-kicker">
+                    ACCOUNT INFORMATION
+                  </span>
+
+                  <h2>Account overview</h2>
+
+                  <div className="settings-info-row">
+                    <span>Account ID</span>
+                    <strong>{currentUser?.id ?? "Unavailable"}</strong>
+                  </div>
+
+                  <div className="settings-info-row">
+                    <span>Account role</span>
+                    <strong>{currentUser?.role || "User"}</strong>
+                  </div>
+
+                  <div className="settings-info-row">
+                    <span>Authentication</span>
+                    <strong>Bearer token</strong>
+                  </div>
+
+                  <div className="settings-info-row">
+                    <span>Session status</span>
+                    <strong className="settings-active-text">
+                      Connected
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="panel settings-security-card">
+                  <div className="settings-security-icon">
+                    <span>◆</span>
+                  </div>
+
+                  <span className="panel-kicker">
+                    ACCOUNT SECURITY
+                  </span>
+
+                  <h2>Your account is protected.</h2>
+
+                  <p>
+                    VARIETY AI uses authenticated sessions
+                    to protect access to your workspace.
+                    Keep your login credentials private.
+                  </p>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={handleLogout}
+                  >
+                    Sign Out of Account
+                    <span>→</span>
+                  </button>
+                </div>
+              </div>
+              <div className="panel settings-sessions-card">
+                <div className="panel-header">
+                  <div>
+                    <span className="panel-kicker">
+                      SESSION MANAGEMENT
+                    </span>
+                    <h2>Active Login Sessions</h2>
+                  </div>
+
+                  <span className="ai-chip">✦ SECURITY</span>
+                </div>
+
+                {sessionsLoading && (
+                  <p className="settings-session-muted">
+                    Loading active sessions...
+                  </p>
+                )}
+
+                {sessionsError && (
+                  <div className="settings-message error" role="alert">
+                    {sessionsError}
+                  </div>
+                )}
+
+                {sessionsMessage && (
+                  <div className="settings-session-success" role="status">
+                    ✓ {sessionsMessage}
+                  </div>
+                )}
+
+                {!sessionsLoading && activeSessions.length === 0 && !sessionsError && (
+                  <p className="settings-session-muted">
+                    No active sessions found.
+                  </p>
+                )}
+
+                {activeSessions.map((session, index) => (
+                  <div className="settings-session-row" key={`${session.created_at}-${index}`}>
+                    <div className="settings-session-device">
+                      <strong>
+                        {session.is_current ? "Current Session" : "Active Session"}
+                      </strong>
+
+                      <span>
+                        {session.user_agent || "Device information unavailable"}
+                      </span>
+
+                      <span>
+                        IP address: {session.ip_address || "Unavailable"}
+                      </span>
+
+                      <span>
+                        Signed in:{" "}
+                        {session.created_at
+                          ? new Date(session.created_at).toLocaleString()
+                          : "Unavailable"}
+                      </span>
+                    </div>
+
+                    {session.is_current && (
+                      <span className="settings-session-current">
+                        CURRENT
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="secondary-button settings-revoke-button"
+                  onClick={handleRevokeOtherSessions}
+                  disabled={revokingSessions || activeSessions.filter(
+                    (session) => !session.is_current
+                  ).length === 0}
+                >
+                  {revokingSessions
+                    ? "Signing Out Other Sessions..."
+                    : "Sign Out Other Sessions"}
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="panel settings-password-card">
+              <div className="panel-header">
+                <div>
+                  <span className="panel-kicker">
+                    PASSWORD & LOGIN SECURITY
+                  </span>
+                  <h2>Change Your Password</h2>
+                  <p>
+                    Keep your account secure by updating your login password.
+                  </p>
+                </div>
+
+                <span className="ai-chip">✦ SECURITY</span>
+              </div>
+
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handlePasswordChange();
+                }}
+              >
+
+                <div className="settings-password-field">
+                  <label>Current Password</label>
+                  <div className="settings-password-input">
+                    <input
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                      placeholder="Enter your current password"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    >
+                      {showCurrentPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="settings-password-field">
+                  <label>New Password</label>
+                  <div className="settings-password-input">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      placeholder="Enter your new password"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      {showNewPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+
+                  {newPassword && (
+                    <div className="password-strength">
+                      <div className="password-strength-track">
+                        <div
+                          className={`password-strength-fill strength-${passwordStrengthLabel.toLowerCase()}`}
+                          style={{
+                            width: `${passwordStrengthScore * 20}%`,
+                          }}
+                        />
+                      </div>
+                      <span>
+                        Password strength: <strong>{passwordStrengthLabel}</strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="settings-password-field">
+                  <label>Confirm New Password</label>
+                  <div className="settings-password-input">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      placeholder="Confirm your new password"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+
+
+                {passwordError && (
+                  <div className="settings-message error" role="alert">
+                    {passwordError}
+                  </div>
+                )}
+
+                {passwordSuccess && (
+                  <div className="settings-message success" role="status">
+                    {passwordSuccess}
+                  </div>
+                )}
+
+                <div className="settings-save-row">
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={passwordSaving}
+                  >
+                    {passwordSaving ? "Updating Password..." : "Update Password"}
+                    <span>→</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="panel settings-notifications-card">
+              <div className="panel-header">
+                <div>
+                  <span className="panel-kicker">
+                    NOTIFICATION CENTRE
+                  </span>
+                  <h2>Notification Preferences</h2>
+                  <p>
+                    Choose which updates and alerts you want to keep enabled.
+                  </p>
+                </div>
+
+                <span className="ai-chip">✦ PREFERENCES</span>
+              </div>
+
+              {[
+                {
+                  key: "review_alerts",
+                  title: "AI Review Alerts",
+                  description: "Updates related to AI review analysis and results.",
+                },
+                {
+                  key: "evidence_alerts",
+                  title: "Evidence Intelligence",
+                  description: "Updates about evidence tracking and verification.",
+                },
+                {
+                  key: "security_alerts",
+                  title: "Security Notifications",
+                  description: "Important account and security-related alerts.",
+                },
+                {
+                  key: "product_updates",
+                  title: "Product Updates",
+                  description: "New features, improvements and platform announcements.",
+                },
+              ].map((item) => (
+                <div className="settings-notification-row" key={item.key}>
+                  <div className="settings-notification-info">
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </div>
+
+                  <label className="settings-toggle">
+                    <input
+                      type="checkbox"
+                      checked={notificationPreferences[item.key]}
+                      onChange={(event) => {
+                        const updatedPreferences = {
+                          ...notificationPreferences,
+                          [item.key]: event.target.checked,
+                        };
+
+                        setNotificationPreferences(updatedPreferences);
+                        saveNotificationPreferences(updatedPreferences);
+                      }}
+                    />
+                    <span className="settings-toggle-slider"></span>
+                  </label>
+                </div>
+              ))}
+            </div>
+
+          </div>
+        );
+
+
+
+
       case "dashboard":
       default:
         return renderDashboard();
@@ -5433,7 +6718,14 @@ function App() {
               </small>
             </div>
 
-            <button className="settings-button">
+            <button
+              className={`settings-button ${activePage === "settings" ? "active" : ""
+                }`}
+              onClick={() => {
+                setActivePage("settings");
+                setMobileMenuOpen(false);
+              }}
+            >
               <span>⚙</span>
               Settings
             </button>
@@ -5529,10 +6821,115 @@ function App() {
               ⌁
             </button>
 
-            <button className="icon-button notification-button">
-              ♢
-              <span />
-            </button>
+            <div className="notification-wrapper">
+              <button
+                className="icon-button notification-button"
+                onClick={() => {
+                  setShowNotifications((previous) => !previous);
+
+                  if (!showNotifications) {
+                    loadNotifications();
+                  }
+                }}
+                aria-label="Notifications"
+              >
+                ♢
+
+                {unreadNotificationCount > 0 && (
+                  <span className="notification-count">
+                    {unreadNotificationCount > 99
+                      ? "99+"
+                      : unreadNotificationCount}
+                  </span>
+                )}
+              </button>
+              {showNotifications && (
+                <div className="notification-dropdown">
+
+                  <div className="notification-dropdown-header">
+                    <div>
+                      <h3>Notifications</h3>
+                      <span>
+                        {unreadNotificationCount} unread
+                      </span>
+                    </div>
+
+                    {unreadNotificationCount > 0 && (
+                      <button
+                        onClick={markAllNotificationsAsRead}
+                        className="mark-all-read"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="notification-list">
+
+                    {notificationsLoading ? (
+                      <div className="notification-empty">
+                        Loading notifications...
+                      </div>
+                    ) : notifications.filter(
+                      (notification) => !notification.is_read
+                    ).length === 0 ? (
+                      <div className="notification-empty">
+                        <span>♢</span>
+                        <p>No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications
+                        .filter((notification) => !notification.is_read)
+                        .map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`notification-item ${notification.is_read
+                              ? "read"
+                              : "unread"
+                              }`}
+                            onClick={() => {
+                              if (!notification.is_read) {
+                                markNotificationAsRead(
+                                  notification.id
+                                );
+                              }
+                            }}
+                          >
+                            <div className="notification-item-icon">
+                              {notification.category === "review"
+                                ? "✦"
+                                : "♢"}
+                            </div>
+
+                            <div className="notification-item-content">
+                              <strong>
+                                {notification.title}
+                              </strong>
+
+                              <p>
+                                {notification.message}
+                              </p>
+
+                              <small>
+                                {notification.created_at
+                                  ? new Date(
+                                    notification.created_at
+                                  ).toLocaleString()
+                                  : ""}
+                              </small>
+                            </div>
+
+                            {!notification.is_read && (
+                              <span className="notification-unread-dot" />
+                            )}
+                          </div>
+                        ))
+                    )}
+
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="top-user">
               <div className="user-avatar">

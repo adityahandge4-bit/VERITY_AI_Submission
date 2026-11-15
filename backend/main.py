@@ -2080,37 +2080,152 @@ Assess exposure to external users, hostile inputs, and sophisticated threat acto
 F8: Complexity and Auditability
 Assess architectural complexity, model opacity, dependencies, and the ability to understand and audit system behaviour.
 
-SCORING:
 
-Score each factor from 1 to 4, using the PDF's Table 12:
-1 = Low
-2 = Moderate
-3 = High
-4 = Critical
+SCORING AND EVIDENCE REQUIREMENTS:
 
-Calculate the composite score by adding all eight factor scores.
+Assess all eight inherent-risk factors independently.
 
-Apply the exact composite score bands from the PDF's second Table 11:
+The subject of this assessment is the underlying AI system, NOT merely the submitted advertisement or marketing communication.
 
-8–12: TIER 1
-13–19: TIER 2
-20–26: TIER 3
-27–32: TIER 4
+The submitted content may provide evidence about the system, but marketing claims must not automatically be treated as verified technical capabilities or actual deployment characteristics.
 
-RISK ESCALATION:
+For each factor:
 
-After calculating the composite score, independently assess the escalation triggers listed on PDF page 25.
+1. Assign a numerical score from 1 to 4 only when the available evidence supports the scoring criteria in the uploaded guideline.
 
-These include:
-- Autonomous safety-critical or consequential actions.
-- Control over critical infrastructure.
-- Potential irreversible physical, operational, or systemic harm.
-- Privileged access to production systems, sensitive information, or critical business processes.
-- Autonomous execution of code, transactions, or external communications.
-- High-threat or actively contested environments.
-- Inability to interrupt, roll back, or place the system into a safe operating state.
+2. Distinguish explicitly stated system facts from marketing claims, reasonable inferences, and unknown information.
 
-Document any escalation or exception separately, with its supporting evidence and rationale. Do not silently change the composite score.
+3. A marketing claim may establish what the organisation represents to customers. It does not independently prove that the claimed capability, deployment, data processing or technical control actually exists.
+
+4. Do not invent technical architecture, system permissions, deployment scale, data collection, transaction execution or operational controls.
+
+5. If the evidence is insufficient to select a defensible score, return null and explain what specific information is missing.
+
+6. Do not assign a default numerical score merely to complete the eight-factor assessment.
+
+7. Do not treat missing information as evidence of either low or high risk.
+
+COMPOSITE SCORE:
+
+Calculate the composite score only when all eight factor scores are supported by evidence and validly assigned.
+
+If even one factor is null:
+- Return null for composite_score.
+- Return UNKNOWN for system_risk_tier.
+- Explain which factors require further information.
+
+If all eight scores are valid, add them and apply the exact composite score bands from the uploaded guideline.
+
+The composite tier and risk escalation must remain separate assessments.
+
+
+
+
+RISK ESCALATION — VARIETY AI INTERNAL ASSESSMENT POLICY:
+
+IMPORTANT:
+The following five escalation triggers are VARIETY AI's internal
+assessment criteria. They are not numerical ratings or escalation
+requirements prescribed by NIST AI RMF 1.0.
+
+Assess the underlying AI system's actual capabilities, permissions,
+deployment and operational context. Do not assess marketing language
+as proof of technical functionality.
+
+Evaluate ALL FIVE triggers independently.
+
+E1 — AUTONOMOUS CONSEQUENTIAL EXECUTION:
+Determine whether the AI system can independently execute consequential
+actions or transactions without meaningful human authorization.
+Examples include executing financial transactions, making binding
+decisions, changing production configurations or initiating consequential
+external actions.
+Recommendations alone do not establish autonomous execution.
+
+E2 — CRITICAL INFRASTRUCTURE OR OPERATIONAL CONTROL:
+Determine whether the AI system directly controls critical infrastructure
+or critical operational systems where malfunction or misuse could cause
+significant operational, public or safety consequences.
+Ordinary business software does not automatically qualify.
+
+E3 — UNSUPERVISED HIGH-IMPACT DECISIONS:
+Determine whether the AI system independently makes or materially
+determines high-impact decisions affecting individuals without
+meaningful human review, intervention or appeal.
+Advisory recommendations subject to genuine human decision-making do
+not automatically qualify.
+
+E4 — PRIVILEGED ACCESS TO CRITICAL SYSTEMS:
+Determine whether the AI system has privileged access, permissions or
+credentials that allow it to control, modify or execute actions within
+critical production systems, databases or infrastructure.
+An API connection or ordinary authenticated access alone does not
+establish privileged access.
+
+E5 — SEVERE SENSITIVE-INFORMATION EXPOSURE AT SIGNIFICANT SCALE:
+Determine whether the AI system creates or has an established capability
+for severe exposure, unauthorized disclosure or misuse of sensitive
+information at significant scale.
+The mere processing of personal or financial information does not
+automatically establish this trigger. Consider actual data categories,
+exposure pathways, access controls, deployment scale and evidence.
+
+INDIVIDUAL TRIGGER ASSESSMENT:
+
+For EACH of E1, E2, E3, E4 and E5, return:
+
+- trigger_id: exact identifier E1, E2, E3, E4 or E5.
+- trigger_name: the corresponding trigger name.
+- status: YES, NO or UNKNOWN.
+- evidence: specific evidence from the submitted system information.
+- rationale: explanation of why the evidence supports the status.
+
+Use these rules:
+
+YES:
+Specific available evidence establishes that the trigger applies.
+
+NO:
+Sufficient system information establishes that the trigger does not
+apply. Explain the evidence supporting this conclusion.
+
+UNKNOWN:
+Available information is insufficient to determine whether the trigger
+applies. Identify the missing information.
+
+Do not interpret silence or missing documentation as proof that a
+trigger is absent.
+
+Do not assume that a system has autonomous execution, privileged
+access, critical infrastructure control or large-scale exposure merely
+because it uses AI, an LLM, financial data, external APIs or automation.
+
+OVERALL ESCALATION DECISION:
+
+- YES: At least one of the five triggers has status YES.
+- NO: All five triggers have status NO.
+- UNKNOWN: No trigger has status YES and at least one trigger has
+  status UNKNOWN.
+
+If any trigger is YES, the overall decision must be YES even if
+other triggers are UNKNOWN.
+
+Never return NO when one or more triggers remain UNKNOWN.
+
+ESCALATION OUTPUT CONSISTENCY:
+
+- Return exactly five individual trigger assessments.
+- Do not omit any trigger.
+- Do not invent additional trigger identifiers.
+- risk_escalation must follow the overall decision rules above.
+- risk_escalation_triggers must list only triggers assessed YES.
+- risk_escalation_rationale must explain the overall decision and
+  important evidence or uncertainties.
+- Assess escalation separately from the composite risk score.
+- Do not attribute this internal policy to NIST AI RMF 1.0.
+
+
+
 
 EVIDENCE AND UNCERTAINTY:
 
@@ -2347,98 +2462,145 @@ coverage check against the uploaded guideline.
 8. Complete this coverage check before returning the JSON.
 
 
-### Mandatory Security and Governance Coverage Assessment
-
-In addition to the general guideline assessment, explicitly evaluate the submitted content against each of the following control areas. Do not skip an area merely because other findings have already been identified.
-
-1. Agentic AI Security and Least Privilege
-   - Assess whether AI agents operate with excessive permissions or shared administrator-level access.
-   - Examine tool permissions, access boundaries, execution limits, credential protection, and separation of duties.
-   - Assess whether agent permissions follow the principle of least privilege.
-   - Apply relevant agentic AI controls, including Section 9.7, where applicable.
-
-2. Human Oversight and Consequential Actions
-   - Assess whether consequential AI-generated actions require appropriate human approval or oversight.
-   - Examine controls for transactions, database modifications, external communications, code execution, and other consequential actions.
-   - Evaluate approval gates, accountability, emergency interruption, and the ability to reverse actions where applicable.
-   - Consider relevant human oversight and contestability requirements.
-
-3. Prompt Injection and Instruction Trust Boundaries
-   - Assess whether the system distinguishes trusted system instructions from untrusted user input, retrieved documents, external content, and tool outputs.
-   - Examine prompt-injection protections, adversarial testing, retrieval security, and instruction hierarchy enforcement.
-   - Consider relevant generative AI, RAG, and agentic AI security requirements.
-
-4. Sensitive Information Disclosure and Output Security
-   - Assess whether generated outputs are checked for confidential information, personal information, credentials, internal documents, and other protected data.
-   - Examine output filtering, access-control enforcement, information disclosure prevention, and validation of generated responses.
-   - Do not assume that input security alone adequately protects generated outputs.
-
-5. Data Retention, Deletion, and Lifecycle Management
-   - Assess whether retention periods, deletion procedures, data minimisation, secure disposal, and deletion-request handling are documented and implemented.
-   - Identify indefinite retention or failure to honour deletion requests where explicitly supported by the submitted content.
-   - Evaluate the entire data lifecycle, including training datasets, logs, backups, and derived data where covered by the guideline.
-
-6. AI Incident Response and Recovery
-   - Assess whether documented procedures exist for AI-related security incidents, incident classification, escalation, containment, notification, recovery, and post-incident review.
-   - Examine whether the organisation can respond to model compromise, data disclosure, prompt injection, unsafe agent actions, and third-party AI incidents.
-   - Consider applicable incident response and business continuity requirements.
-
-7. Third-Party and AI Supply-Chain Assurance
-   - Assess due diligence and ongoing security oversight of third-party AI providers, plugins, external tool servers, software libraries, and cloud services.
-   - Examine component provenance, dependency security, version management, update validation, contractual responsibilities, and fallback arrangements.
-   - Apply relevant third-party and supply-chain requirements according to system architecture and risk tier.
-
-8. AI Transparency and Customer Communication
-   - Assess whether users and customers are informed when they interact with AI systems or receive AI-generated content.
-   - Examine disclosure of AI-generated reports, system limitations, uncertainty, hallucination risks, and relevant automated decision-making.
-   - Distinguish transparency requirements from claims of model accuracy or security.
-
-Coverage and applicability rules:
-
-- Assess all eight areas individually against the actual uploaded guideline.
-- Create a finding when the submitted content provides sufficient evidence of a genuine control gap.
-- Do not create a finding merely because the submitted content does not mention a control. Distinguish an explicitly absent control from insufficient information.
-- Do not treat every control as universally mandatory. Apply the guideline's system risk-tier criteria, use-case conditions, architecture requirements, and applicability statements.
-- Where system risk tier is UNKNOWN, do not assume Tier 4 or automatically impose higher-tier requirements. Identify applicable baseline requirements and explain what additional information is needed.
-- Do not invent guideline requirements, section numbers, or quotations.
-- Use the most specific applicable guideline provision for each finding.
-- Use an exact, contiguous quotation from the submitted content for detected_text.
-- Use an exact quotation from the uploaded guideline for guideline_reference.
-- Keep separate findings for materially different control failures, but do not duplicate the same underlying issue under multiple categories.
-- Do not artificially increase the number of findings to satisfy this coverage checklist.
-- If a control area is adequately addressed or not applicable, do not report it as a violation.
-- Complete a final coverage check before returning the findings.
 
 
-### Mandatory Missing-Control Verification
+### GUIDELINE-DRIVEN CONTROL COVERAGE AND EVIDENCE DISCIPLINE
 
-Before finalizing the findings, perform a specific verification of the following control gaps whenever they are relevant to the submitted system:
+#### 1. COMPLETE GUIDELINE COVERAGE
 
-1. Prompt injection:
-   Check for missing trust boundaries between system instructions, user inputs, retrieved documents, and external tool outputs.
+Use the uploaded guideline as the authoritative source for identifying compliance requirements. Review the entire submitted content against every relevant requirement in the guideline.
 
-2. Sensitive information disclosure:
-   Check for missing controls that prevent generated outputs from exposing confidential information, personal information, credentials, or restricted internal data.
+Do not restrict the review to the first obvious violations. Evaluate each distinct requirement independently.
 
-3. Data retention and deletion:
-   Check for indefinite data retention, missing retention limits, failure to process deletion requests, and missing secure disposal controls.
+Where the guideline contains requirements relating to the following subjects, explicitly evaluate them when relevant:
 
-4. Agentic AI permissions:
-   Check for shared administrator privileges, excessive tool access, and missing least-privilege enforcement.
+- Guaranteed returns, profits and investment claims.
+- Performance figures, projected returns and supporting evidence.
+- Past performance and implications about future results.
+- Financial projections, examples, assumptions and limitations.
+- Material investment risks and risk disclosures.
+- Balanced presentation of benefits and risks.
+- Fees, charges and claims that a service is free.
+- Comparative claims about competitors or benchmarks.
+- Testimonials, customer results, endorsements and supporting disclosures.
+- Regulatory approval, authorization and official endorsement.
+- High-risk claims requiring compliance approval.
+- Documentation, substantiation and record retention.
 
-5. Incident response:
-   Check for missing AI-specific incident classification, escalation, containment, recovery, and post-incident review.
+These are coverage prompts, not automatically applicable requirements. Only identify a violation when the uploaded guideline actually establishes the relevant requirement.
 
-For every identified gap:
-- Verify that the submitted content explicitly supports the finding.
-- Identify the most specific applicable provision in the uploaded guideline.
-- Apply risk-tier and applicability conditions.
-- Use exact contiguous quotations from both the submitted content and guideline.
-- Do not create duplicate findings for the same underlying control failure.
+#### 2. DISTINCT FINDING REQUIREMENTS
 
-Before returning the final result, compare the findings against all mandatory coverage areas and identify any explicitly described control failure that remains unreported.
+For each relevant guideline requirement:
 
-Do not invent requirements, regulatory obligations, or guideline references to increase coverage.
+1. Identify the exact requirement and its guideline reference.
+2. Examine the entire submitted content for relevant claims, statements, omissions or contradictions.
+3. Determine whether the requirement is violated, satisfied, conditionally applicable or cannot be assessed.
+4. Return a finding when the submitted content provides sufficient evidence of a violation.
+5. Use exact, continuous quotations from the submitted content.
+6. Use the exact corresponding guideline provision.
+7. Explain the specific connection between the submitted content and the requirement.
+
+Do not combine independent violations into one finding merely because they concern similar subjects.
+
+Do not create duplicate findings for the same underlying violation.
+
+A guaranteed return and an unsupported performance figure may represent separate violations when the guideline establishes separate requirements for guarantees and substantiation.
+
+A misleading risk-free claim, missing risk disclosure and unbalanced presentation may also represent separate violations when each has an independently supported guideline basis.
+
+For testimonials, distinguish an unsupported or misleading performance implication from an unverified testimonial authorization or disclosure. Do not claim that permission was absent merely because the advertisement does not mention permission.
+
+#### 3. OMISSIONS AND CONDITIONAL REQUIREMENTS
+
+Do not treat every absence of information as a violation.
+
+An omission is a finding only when the guideline requires that information to be disclosed, documented, substantiated or communicated in the circumstances established by the submitted content.
+
+Do not assume that a required approval was not obtained merely because the advertisement does not mention approval.
+
+Do not assume that supporting evidence does not exist merely because it is not included in the advertisement, unless the guideline requires that evidence to accompany the communication.
+
+Apply conditional requirements only when their triggering conditions are supported by the submitted content.
+
+#### 4. RISK FACTOR EVIDENCE VALIDATION
+
+Assess each of the eight risk factors independently using the actual information available about the underlying system.
+
+For every factor, distinguish:
+
+- Direct evidence: explicitly established by the submitted content or reliable system information.
+- Supported inference: a conclusion reasonably supported by specific available evidence.
+- Unknown: insufficient information to assign a defensible score.
+
+Do not convert an unknown factor into a numerical score merely to complete the composite calculation.
+
+Do not infer:
+
+- Automated trading or execution solely from automated recommendations.
+- Collection of sensitive financial information solely from registration or payment references.
+- Privileged access solely from an AI-powered system description.
+- Large-scale deployment solely from broad marketing claims.
+- Technical attack exposure solely because an advertisement is publicly accessible.
+- Architectural complexity or opacity solely because a system uses AI.
+- Actual financial losses or irreversibility solely from promised investment returns.
+
+Financial services may establish sector relevance, but they do not automatically establish every other risk factor.
+
+For each numerical factor score, provide specific supporting evidence and explain why that evidence satisfies the selected score.
+
+If the evidence is insufficient to assess a factor, assign null to its score and explain what information is missing.
+
+#### 5. COMPOSITE RISK SCORE VALIDATION
+
+Calculate the composite score only when all eight factor scores have been validly established.
+
+If one or more factors are unknown:
+
+- Do not invent or substitute numerical scores.
+- Set the composite score to null.
+- Set the calculated system risk tier to UNKNOWN.
+- Explain which factors require additional system information.
+
+Apply the existing guideline-defined scoring thresholds only when a complete, validated composite score is available.
+
+Never present an incomplete or estimated score as a validated composite score.
+
+#### 6. RISK ESCALATION EVIDENCE VALIDATION
+
+Evaluate each escalation trigger independently.
+
+Set an escalation trigger to YES only when specific available evidence establishes that the trigger applies.
+
+Set it to NO when sufficient information establishes that it does not apply.
+
+Set it to UNKNOWN when available information is insufficient.
+
+Do not claim privileged access, sensitive information exposure, critical business-process access, irreversible harm or systemic impact without evidence supporting the specific trigger.
+
+A potentially harmful marketing claim may support a compliance finding without automatically proving that the underlying technical system meets a particular risk escalation trigger.
+
+Do not confuse the severity of a marketing violation with the technical risk classification of the underlying AI system.
+
+If the available evidence cannot establish the overall escalation decision, return UNKNOWN and explain the missing information.
+
+#### 7. FINAL COVERAGE AND EVIDENCE AUDIT
+
+Before returning the final JSON:
+
+- Verify that every relevant guideline requirement was considered.
+- Verify that every returned finding has an exact content quotation.
+- Verify that every returned finding has an exact guideline quotation.
+- Check independently applicable requirements for missed violations.
+- Remove duplicate findings.
+- Do not invent violations, missing approvals or unsupported omissions.
+- Verify that every numerical risk factor has specific supporting evidence.
+- Verify that unknown risk factors remain null.
+- Verify that the composite score uses only eight validated factor scores.
+- Verify that every escalation trigger is evidence-based.
+- Preserve all existing severity, quotation accuracy and response-format requirements.
+
+Accuracy, traceability and evidence quality take priority over the number of findings returned.
 
 
 
@@ -2585,6 +2747,259 @@ Before returning each finding, verify:
 - The finding is not a duplicate.
 - No external facts or unsupported assumptions were introduced.
 
+### ASSESSMENT QUALITY AND EVIDENCE VALIDATION — MANDATORY RULES
+
+Apply all the following rules when assessing the submitted AI system against the selected guideline.
+
+#### 1. NIST FRAMEWORK ATTRIBUTION AND NUMERICAL SCORING
+
+When the selected guideline is NIST AI Risk Management Framework (AI RMF) 1.0:
+
+- Evaluate the system using the actual NIST AI RMF functions: GOVERN, MAP, MEASURE, and MANAGE.
+- Use the exact categories and subcategory identifiers and descriptions provided in the selected NIST document.
+- NIST AI RMF 1.0 does not prescribe the application's F1–F8 factor definitions, a universal 1–4 scoring scale, or Tier 1–4 numerical thresholds.
+- Never describe a custom numerical score, composite score, or risk tier as a score or classification assigned by NIST.
+- If the application provides a separate, explicitly defined internal F1–F8 scoring rubric, assess those factors independently using that rubric.
+- Clearly label any resulting numerical score and tier as an INTERNAL / CUSTOM RISK ASSESSMENT, not a NIST rating.
+- Do not derive numerical scoring criteria or thresholds from NIST where none are specified.
+- If the applicable internal scoring rubric or evidence is unavailable, return null for the affected factor rather than inventing a score.
+- Calculate a composite score only when all eight factor scores are valid under the supplied internal rubric.
+- If any required factor cannot be assessed, return an UNKNOWN system risk tier and an unavailable composite score.
+- Keep the NIST framework assessment separate from the internal numerical risk assessment.
+
+The risk tier rationale must explicitly identify the scoring methodology used. Never state that NIST assigned a Tier 1, Tier 2, Tier 3, or Tier 4 classification.
+
+#### 2. EVIDENCE-BASED INDIVIDUAL RISK FACTOR SCORING
+
+For every factor F1–F8:
+
+- Use only the factor definitions and scoring criteria explicitly supplied by the application's internal scoring rubric.
+- Identify specific evidence from the submitted system description that supports the assigned score.
+- Explain why the evidence satisfies the selected score's criteria.
+- Consider both the potential harm and the actual system capabilities, operational context, human oversight, and available safeguards.
+- Do not automatically assign higher scores merely because the system uses an LLM, operates online, processes financial information, or belongs to a regulated industry.
+- Do not automatically assign lower scores merely because human oversight, encryption, access controls, or backups are mentioned.
+- Human oversight must be assessed for its actual scope and effectiveness. It does not automatically eliminate the consequences of incorrect AI recommendations.
+- Reversibility must consider whether downstream decisions or real-world consequences can actually be reversed, not merely whether the AI output itself can be withdrawn.
+- Scale must be evaluated against explicit internal scoring criteria. Do not label a user population as low, moderate, or high without an applicable threshold.
+- Complexity and auditability must consider both model complexity and documented monitoring, explainability, traceability, and review capabilities.
+- Distinguish implemented controls from controls that are merely claimed, planned, or not documented.
+- Do not invent technical architecture, permissions, safeguards, testing results, or operational capabilities.
+- When evidence is insufficient to justify a score, return null for that factor and explain the missing evidence.
+
+Every factor assessment must contain:
+1. Factor name.
+2. Score or null.
+3. Exact supporting evidence from the submitted material.
+4. Explanation connecting that evidence to the internal scoring criteria.
+5. Any material uncertainty or missing information.
+
+Do not force all eight factors to receive numerical scores simply to produce a composite score.
+
+#### 3. RISK ESCALATION — EXPLICIT TRIGGER VALIDATION
+
+Assess risk escalation separately from the composite risk score and system risk tier.
+
+Evaluate each escalation trigger defined by the application's existing escalation policy. Do not invent, broaden, or silently reinterpret trigger definitions.
+
+For each trigger:
+
+- Identify the exact trigger.
+- Determine YES, NO, or UNKNOWN based on the submitted evidence.
+- Provide the supporting quotation or explain what information is missing.
+- Distinguish actual system capabilities from marketing claims, intended future capabilities, hypothetical scenarios, and general industry context.
+
+Apply these decision rules:
+
+- YES: At least one explicitly defined escalation trigger is directly supported by evidence.
+- NO: Every applicable escalation trigger has been adequately assessed, sufficient evidence supports ruling them out, and none is present.
+- UNKNOWN: No trigger has been established, but available information is insufficient to confidently rule out one or more applicable triggers.
+
+If at least one trigger is confirmed YES, the overall escalation decision must be YES, even if other triggers remain UNKNOWN.
+
+Do not classify a system as escalated solely because it:
+- Operates in financial services or another regulated sector.
+- Generates recommendations, forecasts, predictions, or analytical summaries.
+- Uses a large language model.
+- Has internet-facing applications or APIs.
+- Processes sensitive information.
+
+Evaluate actual autonomy, authority, permissions, human approval requirements, operational impact, and the exact trigger definitions.
+
+An advisory system without transaction-execution permissions must not be treated as an autonomous transaction-execution system. However, its recommendations may still create meaningful downstream risks.
+
+Never return NO merely because the submitted description does not mention an escalation trigger. Absence of evidence is not automatically evidence that a trigger is absent.
+
+The escalation rationale must explain why the selected YES, NO, or UNKNOWN decision is justified.
+
+#### 4. NIST FINDING ACCURACY AND EVIDENCE QUALITY
+
+For every finding:
+
+- Verify the exact NIST function, category, and subcategory identifier against the selected document.
+- Quote the actual guideline requirement accurately.
+- Never invent a NIST subcategory, requirement, page reference, numerical threshold, or certification.
+- For NIST GOVERN 4.2, assess whether organizational teams document AI risks and potential impacts and communicate those impacts more broadly.
+- For NIST MEASURE 2.11, assess whether fairness and bias identified through the MAP function are evaluated and the results documented.
+- Distinguish an actual confirmed control failure from a lack of evidence in the submitted material.
+- If documentation is absent from the submission, describe the finding as an evidence or documentation gap. Do not claim that the organization definitely has no such control.
+- The detected text must be an exact contiguous quotation from the submitted content.
+- Explain how the quoted passage relates to the identified gap. Do not imply that the quoted passage itself proves a missing control.
+- Suggested corrections must be practical and relevant to the actual requirement.
+- Do not create findings merely because a document does not discuss an unrelated topic.
+
+#### 5. FINAL CONSISTENCY CHECK
+
+Before producing the final assessment:
+
+- Confirm that the NIST assessment and internal numerical assessment are clearly separated.
+- Confirm that every numerical factor score is supported by the internal scoring rubric and submitted evidence.
+- Confirm that the composite score matches the validated factor scores.
+- Confirm that the risk tier matches the application's internal tier thresholds, without attributing those thresholds to NIST.
+- Confirm that the escalation decision follows the explicit trigger validation rules.
+- Confirm that every NIST finding references an actual subcategory in the selected guideline.
+- Confirm that missing documentation is not incorrectly represented as proof that a control does not exist.
+- Preserve the existing response JSON schema and all required backend-compatible fields.
+- Never fabricate evidence to complete an assessment.
+
+## EVIDENCE-BASED FACTOR SCORING AND RISK ESCALATION — MANDATORY VALIDATION RULES
+
+### PART 1 — EVIDENCE-BASED INDIVIDUAL RISK FACTOR SCORING
+
+Assess all eight risk factors (F1–F8) independently. Apply the existing internal 1–4 scoring rubric consistently. Do not change the factor definitions, score ranges, composite calculation, or risk-tier boundaries.
+
+For every factor:
+
+1. Identify the specific evidence in the submitted system description that supports the score.
+2. Explain how that evidence satisfies the criteria for the selected score under the existing scoring rubric.
+3. Distinguish verified system capabilities and implemented controls from organizational claims, assumptions, intended practices, or missing documentation.
+4. Consider both inherent risk and the actual mitigating effect of evidenced controls.
+5. Identify uncertainty and limitations in the available evidence.
+
+**Specific scoring safeguards:**
+
+**F1 — Impact Severity**
+- Evaluate the potential consequences if the AI system produces incorrect, misleading, or harmful outputs.
+- Consider the financial, individual, organizational, and operational consequences.
+- Do not automatically reduce impact severity because human oversight exists.
+- Distinguish potential impact from the likelihood of that impact occurring.
+
+**F2 — Autonomy and Actionability**
+- Assess what the system can actually do, including its permissions, execution authority, and ability to initiate consequential actions.
+- Distinguish recommendations and decision support from autonomous execution.
+- Give appropriate consideration to documented human approval requirements.
+- Do not infer transaction-execution capabilities without supporting evidence.
+
+**F3 — Data Sensitivity**
+- Assess the actual categories of information processed, their sensitivity, exposure, and potential consequences of misuse or disclosure.
+- Distinguish personally identifiable information, financial information, and ordinary operational data.
+- Do not assume encryption or access controls eliminate the underlying sensitivity of the data.
+
+**F4 — Scale and Exposure**
+- Assess the documented number and types of affected users, deployment reach, usage frequency where available, and potential number of people affected by an incorrect output.
+- Do not label a user population as small, moderate, or large without applying an explicit threshold or criterion from the existing scoring rubric.
+- Do not invent thresholds based on intuition.
+- If the existing rubric does not define a scale threshold, explicitly identify that limitation and avoid presenting an arbitrary classification as objectively established.
+
+**F5 — Reversibility and Recoverability**
+- Assess whether harmful outcomes can actually be reversed or recovered from after an AI output has been used.
+- Distinguish between the ability to reject an AI recommendation before action and the ability to recover from harm after action.
+- Consider financial losses, downstream decisions, recovery time, and whether reversal may introduce additional costs.
+- Do not automatically assign a low score simply because the AI system itself does not execute transactions.
+
+**F6 — Operational / Sector Criticality**
+- Consider the actual function performed by the system and its relationship to critical services or infrastructure.
+- Distinguish a system operating in a regulated sector from a system that directly controls critical financial infrastructure or essential services.
+- Do not assign a high score solely because the organization operates in finance, healthcare, or another regulated sector.
+- Do not disregard potential consequences merely because the system is advisory.
+
+**F7 — Adversarial Exposure**
+- Assess documented attack surfaces, external accessibility, authentication, permissions, integrations, threat exposure, and available security safeguards.
+- Internet-facing deployment and LLM usage may indicate potential exposure, but do not independently prove an exploitable vulnerability, successful attack, or high likelihood of compromise.
+- Consider relevant LLM-specific threats, including prompt injection, malicious inputs, data leakage, and manipulation of generated outputs, only where relevant to the system architecture and available evidence.
+- Do not claim that these vulnerabilities exist unless supported by evidence.
+- Distinguish potential attack scenarios from demonstrated security weaknesses.
+- If security testing, threat modelling, or vulnerability evidence is not provided, explicitly identify the uncertainty.
+
+**F8 — Complexity and Auditability**
+- Assess the actual system architecture, model complexity, explainability, output traceability, logging, monitoring, documentation, and ability to investigate decisions.
+- LLM usage alone does not automatically establish that the entire system is unauditable or opaque.
+- Consider whether model outputs, inputs, human approvals, data sources, and consequential decisions can be traced and reviewed.
+- Do not assume auditability exists merely because the organization claims to maintain logs.
+- Do not assume auditability is absent merely because the system uses an LLM.
+- Identify which relevant auditability and explainability controls are documented and which remain unverified.
+
+**Scoring consistency requirements:**
+- Never inflate a score merely because a system uses AI, LLMs, financial data, or internet-facing applications.
+- Never reduce a score solely because human oversight, encryption, role-based access, or other safeguards are mentioned.
+- Evaluate safeguards according to their documented scope and effectiveness.
+- Do not invent missing system architecture, security controls, operational thresholds, testing results, or monitoring capabilities.
+- If evidence is insufficient to justify a numerical score under the existing rubric, mark that factor as UNKNOWN or null, using the existing output schema.
+- Do not manufacture a score merely to complete all eight factors.
+- Calculate the composite score only when all eight factor scores are valid.
+- Calculate the risk tier strictly from the existing internal tier boundaries.
+- Explain any material uncertainty affecting the final assessment.
+
+### PART 2 — RISK ESCALATION: COMPLETE TRIGGER-BY-TRIGGER VALIDATION
+
+Assess risk escalation independently from the composite risk score and risk tier.
+
+Use only the escalation triggers already defined in the existing assessment policy. Do not create, broaden, reinterpret, or invent escalation triggers.
+
+Before returning an overall escalation decision, evaluate EVERY applicable defined trigger independently.
+
+For each trigger, provide:
+- Trigger identifier and name.
+- Assessment result: YES, NO, or UNKNOWN.
+- Exact supporting evidence from the submitted system description.
+- A concise explanation of why the evidence supports that result.
+- Any missing information that prevents a reliable determination.
+
+**Decision rules:**
+
+**YES**
+- Return YES for an individual trigger only when the submitted evidence directly supports that trigger.
+- Do not infer a trigger solely from the organization's industry, use of AI, use of LLMs, sensitive data processing, internet accessibility, or advisory recommendations.
+- Distinguish actual system capabilities from hypothetical future capabilities, marketing claims, and unsupported assumptions.
+
+**NO**
+- Return NO for an individual trigger only when sufficient evidence is available to assess the trigger and the evidence supports ruling it out.
+- Absence of a statement in the submitted description is not, by itself, proof that the trigger does not exist.
+- Do not return NO merely because the submitted description does not mention a trigger.
+
+**UNKNOWN**
+- Return UNKNOWN when the available information is insufficient to determine whether a trigger applies.
+- Explicitly identify the missing technical, operational, permission, deployment, or governance information required for assessment.
+
+**Overall escalation decision:**
+- Return YES if at least one defined trigger is supported by evidence.
+- Return NO only if every applicable defined trigger has been adequately evaluated and none is supported by the available evidence.
+- Return UNKNOWN if no trigger is established as YES, but one or more applicable triggers cannot be reliably assessed.
+- If one trigger is YES, the overall decision remains YES even if other triggers are UNKNOWN.
+
+**Human oversight and financial-system safeguards:**
+- Distinguish human review of recommendations from actual control over consequential actions.
+- Verify whether human approval is mandatory, meaningful, and required before an action occurs.
+- Distinguish the ability to generate or rank investment recommendations from the authority to execute trades, transfer funds, or modify financial accounts.
+- Do not infer autonomous transaction execution when the system description explicitly rules it out.
+- Do not treat human oversight as proof that all other escalation triggers are absent.
+- Assess actual permissions, system integrations, execution capabilities, and operational authority when relevant.
+
+### PART 3 — FINAL CONSISTENCY CHECK
+
+Before generating the final assessment:
+
+1. Verify that each F1–F8 score is supported by evidence and the existing internal scoring rubric.
+2. Verify that no score relies on an invented threshold or unsupported assumption.
+3. Verify that all eight factor scores sum correctly when a composite score is available.
+4. Verify that the calculated tier matches the existing internal tier boundaries.
+5. Verify that every defined escalation trigger has an individual assessment.
+6. Verify that the overall escalation decision follows the YES, NO, and UNKNOWN rules above.
+7. Verify that the escalation rationale accurately explains the trigger assessments rather than relying only on the system's advisory status or human oversight.
+8. Preserve the existing JSON response structure and all existing field names, data types, and validation requirements.
+9. Do not fabricate evidence to make the output appear complete.
+10. Do not weaken quotation validation or other backend evidence-validation requirements.
+
 
 Return ONLY valid JSON in this exact structure:
 
@@ -2642,9 +3057,50 @@ Return ONLY valid JSON in this exact structure:
     }}
   ],
   "composite_score": null,
+
   "risk_escalation": "UNKNOWN",
   "risk_escalation_triggers": [],
+
+  "risk_escalation_assessments": [
+    {{
+      "trigger_id": "E1",
+      "trigger_name": "Autonomous Consequential Execution",
+      "status": "UNKNOWN",
+      "evidence": "...",
+      "rationale": "..."
+    }},
+    {{
+      "trigger_id": "E2",
+      "trigger_name": "Critical Infrastructure or Operational Control",
+      "status": "UNKNOWN",
+      "evidence": "...",
+      "rationale": "..."
+    }},
+    {{
+      "trigger_id": "E3",
+      "trigger_name": "Unsupervised High-Impact Decisions",
+      "status": "UNKNOWN",
+      "evidence": "...",
+      "rationale": "..."
+    }},
+    {{
+      "trigger_id": "E4",
+      "trigger_name": "Privileged Access to Critical Systems",
+      "status": "UNKNOWN",
+      "evidence": "...",
+      "rationale": "..."
+    }},
+    {{
+      "trigger_id": "E5",
+      "trigger_name": "Severe Sensitive-Information Exposure at Significant Scale",
+      "status": "UNKNOWN",
+      "evidence": "...",
+      "rationale": "..."
+    }}
+  ],
+
   "risk_escalation_rationale": "...",
+
   "system_risk_tier": "Tier 1, Tier 2, Tier 3, Tier 4, or UNKNOWN",
   "risk_tier_rationale": "...",
   "findings": [
@@ -2706,7 +3162,31 @@ SUBMITTED CONTENT:
                     cleaned_response.rstrip()[:-3].strip()
                 )
 
-        ai_result = json.loads(cleaned_response)
+        try:
+            ai_result = json.loads(cleaned_response)
+        except json.JSONDecodeError as json_error:
+            error_position = json_error.pos
+            snippet_start = max(0, error_position - 120)
+            snippet_end = min(
+                len(cleaned_response),
+                error_position + 120,
+            )
+
+            print(
+                "[AI JSON DEBUG] Error:",
+                json_error.msg,
+                "| Line:",
+                json_error.lineno,
+                "| Column:",
+                json_error.colno,
+            )
+
+            print(
+                "[AI JSON DEBUG] Response around error:",
+                repr(cleaned_response[snippet_start:snippet_end]),
+            )
+
+            raise
 
         if not isinstance(ai_result, dict):
             raise ValueError("AI returned an invalid JSON object.")
@@ -2833,32 +3313,106 @@ SUBMITTED CONTENT:
             system_risk_tier = "UNKNOWN"
 
         # Validate separate risk-escalation information.
-        risk_escalation_raw = str(
-            ai_result.get("risk_escalation", "UNKNOWN")
-        ).strip().upper()
 
-        risk_escalation = (
-            risk_escalation_raw
-            if risk_escalation_raw in {"YES", "NO", "UNKNOWN"}
-            else "UNKNOWN"
+        # Validate all five internal risk escalation triggers.
+        expected_escalation_triggers = {
+            "E1": "Autonomous Consequential Execution",
+            "E2": "Critical Infrastructure or Operational Control",
+            "E3": "Unsupervised High-Impact Decisions",
+            "E4": "Privileged Access to Critical Systems",
+            "E5": "Severe Sensitive-Information Exposure at Significant Scale",
+        }
+
+        raw_escalation_assessments = ai_result.get(
+            "risk_escalation_assessments", []
         )
 
-        raw_escalation_triggers = ai_result.get(
-            "risk_escalation_triggers", []
-        )
+        assessment_lookup = {}
 
-        risk_escalation_triggers = []
+        if isinstance(raw_escalation_assessments, list):
+            for item in raw_escalation_assessments:
+                if not isinstance(item, dict):
+                    continue
 
-        if isinstance(raw_escalation_triggers, list):
-            risk_escalation_triggers = [
-                str(trigger).strip()
-                for trigger in raw_escalation_triggers
-                if isinstance(trigger, str) and trigger.strip()
-            ]
+                trigger_id = str(
+                    item.get("trigger_id", "")
+                ).strip().upper()
+
+                if trigger_id in expected_escalation_triggers:
+                    assessment_lookup[trigger_id] = item
+
+        risk_escalation_assessments = []
+
+        for trigger_id, trigger_name in expected_escalation_triggers.items():
+            raw_assessment = assessment_lookup.get(trigger_id, {})
+
+            status = str(
+                raw_assessment.get("status", "UNKNOWN")
+            ).strip().upper()
+
+            if status not in {"YES", "NO", "UNKNOWN"}:
+                status = "UNKNOWN"
+
+            evidence = str(
+                raw_assessment.get("evidence", "")
+            ).strip()
+
+            rationale = str(
+                raw_assessment.get("rationale", "")
+            ).strip()
+
+            # A YES or NO decision requires supporting evidence
+            # and an explanation. Otherwise, classify as UNKNOWN.
+            if status in {"YES", "NO"} and (
+                not evidence or not rationale
+            ):
+                status = "UNKNOWN"
+
+            if not rationale:
+                rationale = (
+                    "Insufficient information to assess this trigger."
+                )
+
+            risk_escalation_assessments.append({
+                "trigger_id": trigger_id,
+                "trigger_name": trigger_name,
+                "status": status,
+                "evidence": evidence,
+                "rationale": rationale,
+            })
+
+        # Derive the overall decision deterministically.
+        trigger_statuses = [
+            item["status"]
+            for item in risk_escalation_assessments
+        ]
+
+        if "YES" in trigger_statuses:
+            risk_escalation = "YES"
+        elif all(status == "NO" for status in trigger_statuses):
+            risk_escalation = "NO"
+        else:
+            risk_escalation = "UNKNOWN"
+
+        # Preserve the existing frontend-compatible string array.
+        risk_escalation_triggers = [
+            (
+                f'{item["trigger_id"]}: '
+                f'{item["trigger_name"]}'
+            )
+            for item in risk_escalation_assessments
+            if item["status"] == "YES"
+        ]
 
         risk_escalation_rationale = str(
             ai_result.get("risk_escalation_rationale", "")
         ).strip()
+
+        if not risk_escalation_rationale:
+            risk_escalation_rationale = (
+                "Overall escalation decision determined from "
+                "the five individual internal trigger assessments."
+            )
 
         # Use the backend-calculated tier, not Gemini's claimed tier.
         if system_risk_tier == "UNKNOWN":
@@ -3310,6 +3864,7 @@ SUBMITTED CONTENT:
         "risk_escalation": risk_escalation,
         "risk_escalation_triggers": risk_escalation_triggers,
         "risk_escalation_rationale": risk_escalation_rationale,
+        "risk_escalation_assessments": risk_escalation_assessments,
         "total_violations": len(findings),
         "risk_summary": {
             "high": high_count,

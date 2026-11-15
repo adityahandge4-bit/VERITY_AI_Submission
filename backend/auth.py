@@ -52,6 +52,18 @@ class ChangePasswordRequest(BaseModel):
     )
 
 
+class DeleteAccountRequest(BaseModel):
+    current_password: str = Field(
+        min_length=1,
+        max_length=128
+    )
+    confirmation: str = Field(
+        min_length=1,
+        max_length=50
+    )
+
+
+
 
 
 def get_placeholder():
@@ -526,3 +538,109 @@ def require_roles(*allowed_roles: str):
         return user
 
     return role_checker
+
+
+# ==========================================
+# BATCH 4: ACCOUNT MANAGEMENT & DELETION
+# ==========================================
+
+@router.delete("/account")
+def delete_account(
+    data: DeleteAccountRequest,
+    user: dict = Depends(get_current_user)
+):
+    # Require an explicit confirmation phrase.
+    if data.confirmation != "DELETE MY ACCOUNT":
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter DELETE MY ACCOUNT to confirm."
+        )
+
+    placeholder = get_placeholder()
+    now = datetime.now(timezone.utc).isoformat()
+
+    with get_connection() as conn:
+
+        # Verify the account still exists and retrieve its password hash.
+        account = conn.execute(
+            f"""
+            SELECT password_hash
+            FROM users
+            WHERE id = {placeholder}
+            """,
+            (user["id"],)
+        ).fetchone()
+
+        if account is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Account not found."
+            )
+
+        # Require the current account password.
+        if not password_hasher.verify(
+            data.current_password,
+            account["password_hash"]
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Incorrect password. Account was not deleted."
+            )
+
+        # Revoke every session, including the current session.
+        conn.execute(
+            f"""
+            UPDATE auth_sessions
+            SET revoked_at = {placeholder}
+            WHERE user_id = {placeholder}
+              AND revoked_at IS NULL
+            """,
+            (now, user["id"])
+        )
+
+        # Delete only records explicitly owned by this account.
+        # Records with NULL user_id remain untouched.
+        owned_tables = [
+            "review_findings",
+            "guideline_versions",
+            "governance_items",
+            "governance",
+            "reviews",
+            "brand_guidelines",
+            "analytics",
+            "evidence",
+            "audit_logs",
+            "brands",
+            "notifications",
+            "notification_preferences",
+            "user_settings",
+            "workspace_settings",
+            "api_keys",
+            "support_tickets",
+        ]
+
+        for table_name in owned_tables:
+            conn.execute(
+                f"""
+                DELETE FROM {table_name}
+                WHERE user_id = {placeholder}
+                """,
+                (user["id"],)
+            )
+
+        # Finally delete the account itself.
+        conn.execute(
+            f"""
+            DELETE FROM users
+            WHERE id = {placeholder}
+            """,
+            (user["id"],)
+        )
+
+    return {
+        "success": True,
+        "message": (
+            "Your account and user-owned application data "
+            "have been deleted. All account sessions have been revoked."
+        )
+    }

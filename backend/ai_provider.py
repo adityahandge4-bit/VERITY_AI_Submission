@@ -51,10 +51,11 @@ def generate_ai_response(prompt: str) -> str:
     model=GEMINI_MODEL,
     contents=prompt,
     config=types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(
-           thinking_level=types.ThinkingLevel.LOW
-        ),
-        max_output_tokens=4096
+    response_mime_type="application/json",
+    thinking_config=types.ThinkingConfig(
+        thinking_level=types.ThinkingLevel.LOW
+    ),
+    max_output_tokens=8192
     )
 )
     generation_time = time.perf_counter() - start_time
@@ -67,6 +68,18 @@ def generate_ai_response(prompt: str) -> str:
     )
 
     result = response.text
+
+    finish_reason = "UNKNOWN"
+
+    if response.candidates:
+        finish_reason = str(
+            response.candidates[0].finish_reason
+        )
+
+    print(
+        f"[AI DEBUG] Finish reason: {finish_reason} | "
+        f"Response characters: {len(result or '')}"
+    )
 
     if not result or not result.strip():
         raise RuntimeError(

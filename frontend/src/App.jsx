@@ -2287,9 +2287,9 @@ function App() {
         risk_escalation:
           data.risk_escalation || "UNKNOWN",
 
-        risk_escalation_triggers:
-          Array.isArray(data.risk_escalation_triggers)
-            ? data.risk_escalation_triggers
+        risk_escalation_assessments:
+          Array.isArray(data.risk_escalation_assessments)
+            ? data.risk_escalation_assessments
             : [],
 
         risk_escalation_rationale:
@@ -3513,6 +3513,53 @@ function App() {
                               </ul>
                             </>
                           )}
+
+                          {selectedHistoryReview.risk_escalation_assessments?.length > 0 && (
+                            <>
+                              <p>
+                                <strong>Individual Escalation Trigger Assessments:</strong>
+                              </p>
+
+                              <ul>
+                                {selectedHistoryReview.risk_escalation_assessments.map(
+                                  (assessment) => (
+                                    <li key={assessment.trigger_id}>
+                                      <p>
+                                        <strong>
+                                          {assessment.trigger_id}: {assessment.trigger_name}
+                                        </strong>
+                                      </p>
+
+                                      <p>
+                                        <strong>Status:</strong>{" "}
+                                        <span
+                                          className={`status-badge ${assessment.status === "YES"
+                                            ? "status-high"
+                                            : assessment.status === "NO"
+                                              ? "status-compliant"
+                                              : "status-warning"
+                                            }`}
+                                        >
+                                          {assessment.status}
+                                        </span>
+                                      </p>
+
+                                      <p>
+                                        <strong>Evidence:</strong>{" "}
+                                        {assessment.evidence || "Not provided."}
+                                      </p>
+
+                                      <p>
+                                        <strong>Rationale:</strong>{" "}
+                                        {assessment.rationale || "Not provided."}
+                                      </p>
+                                    </li>
+                                  )
+                                )}
+                              </ul>
+                            </>
+                          )}
+
 
                           <h3>Individual Risk Factor Assessments</h3>
 

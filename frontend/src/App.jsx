@@ -1,10 +1,104 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import "./App.css";
+import HelpCentre from "./HelpCentre";
+import SupportConversation from "./SupportConversation";
+import SupportAgentInbox from "./SupportAgentInbox";
+
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 ).replace(/\/+$/, "");
+
+
+const getApiErrorMessage = (payload, fallback) => {
+  const detail =
+    payload?.detail ??
+    payload?.message ??
+    payload;
+
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+
+        if (item && typeof item === "object") {
+          const field = Array.isArray(item.loc)
+            ? item.loc.filter((part) => part !== "body").join(".")
+            : "";
+
+          const message =
+            item.msg ||
+            item.message ||
+            item.detail;
+
+          if (typeof message === "string") {
+            return field ? `${field}: ${message}` : message;
+          }
+        }
+
+        return "";
+      })
+      .filter(Boolean);
+
+    if (messages.length > 0) {
+      return messages.join(" | ");
+    }
+  }
+
+  if (detail && typeof detail === "object") {
+    const message =
+      detail.message ||
+      detail.msg ||
+      detail.detail;
+
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return fallback;
+};
+
+
+const parseApiResponse = async (response) => {
+  const rawBody = await response.text().catch(() => "");
+
+  let data = {};
+
+  if (rawBody) {
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      data = {
+        detail: rawBody,
+      };
+    }
+  }
+
+  if (!response.ok) {
+    const error = new Error(
+      getApiErrorMessage(
+        data,
+        `Request failed with status ${response.status}.`
+      )
+    );
+
+    error.status = response.status;
+    error.data = data;
+
+    throw error;
+  }
+
+  return data;
+};
+
 
 
 
@@ -248,7 +342,6 @@ function ScoreRing({ score = 92, size = 210 }) {
           }}
         />
       </svg>
-
       <div className="score-content">
         <span className="score-number">{safeScore}</span>
         <span className="score-total">/100</span>
@@ -310,6 +403,28 @@ function App() {
   const [sessionsError, setSessionsError] = useState("");
   const [sessionsMessage, setSessionsMessage] = useState("");
   const [revokingSessions, setRevokingSessions] = useState(false);
+  // ============================================================
+  // BATCH 5 — ABOUT & SUPPORT STATE
+  // ============================================================
+
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportCategory, setSupportCategory] = useState("technical");
+  const [supportMessage, setSupportMessage] = useState("");
+
+  const [supportTickets, setSupportTickets] = useState([]);
+  const [selectedSupportTicket, setSelectedSupportTicket] = useState(null);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
+
+  const [supportError, setSupportError] = useState("");
+  const [supportSuccess, setSupportSuccess] = useState("");
+
+  const [platformHealth, setPlatformHealth] = useState(null);
+  const [platformHealthLoading, setPlatformHealthLoading] = useState(false);
+
+  const [privacyExporting, setPrivacyExporting] = useState("");
+  const [privacyError, setPrivacyError] = useState("");
+  const [privacySuccess, setPrivacySuccess] = useState("");
 
   const passwordStrengthScore = [
     newPassword.length >= 12,
@@ -392,6 +507,7 @@ function App() {
   const [activePage, setActivePage] = useState("dashboard");
   const [analyticsRange, setAnalyticsRange] = useState("all");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const loadNotifications = async () => {
     if (!accessToken) return;
 
@@ -410,27 +526,29 @@ function App() {
         }),
       ]);
 
-      if (!notificationsResponse.ok || !unreadResponse.ok) {
-        throw new Error("Unable to load notifications");
-      }
-
-      const notificationsData = await notificationsResponse.json();
-      const unreadData = await unreadResponse.json();
-
-      setNotifications(
-        Array.isArray(notificationsData)
-          ? notificationsData
-          : notificationsData.notifications || []
+      const notificationsData = await parseApiResponse(
+        notificationsResponse
       );
+
+      const unreadData = await parseApiResponse(unreadResponse);
+
+      const notificationList = Array.isArray(notificationsData)
+        ? notificationsData
+        : Array.isArray(notificationsData.notifications)
+          ? notificationsData.notifications
+          : [];
+
+      setNotifications(notificationList);
 
       setUnreadNotificationCount(
-        unreadData.unread_count ?? 0
+        Number(unreadData.unread_count ?? 0)
       );
-
     } catch (error) {
       console.error("Notifications loading error:", error);
     }
   };
+
+
   const loadNotificationPreferences = async () => {
     if (!accessToken) return;
 
@@ -444,11 +562,7 @@ function App() {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Unable to load notification preferences");
-      }
-
-      const preferences = await response.json();
+      const preferences = await parseApiResponse(response);
 
       setNotificationPreferences(preferences);
     } catch (error) {
@@ -458,6 +572,8 @@ function App() {
       );
     }
   };
+
+
   const saveNotificationPreferences = async (preferences) => {
     if (!accessToken) return;
 
@@ -474,23 +590,28 @@ function App() {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Unable to save notification preferences");
-      }
+      const data = await parseApiResponse(response);
 
-      const data = await response.json();
-
-      console.log(data.message);
+      console.log(
+        data.message || "Notification preferences saved successfully."
+      );
     } catch (error) {
       console.error(
         "Notification preferences saving error:",
         error
       );
 
-      alert("Unable to save notification preferences. Please try again.");
+      alert(
+        error.message ||
+        "Unable to save notification preferences. Please try again."
+      );
     }
   };
+
+
   const markNotificationAsRead = async (notificationId) => {
+    if (!accessToken) return;
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/notifications/${notificationId}/read`,
@@ -502,9 +623,7 @@ function App() {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Unable to mark notification as read");
-      }
+      await parseApiResponse(response);
 
       await loadNotifications();
     } catch (error) {
@@ -512,7 +631,10 @@ function App() {
     }
   };
 
+
   const markAllNotificationsAsRead = async () => {
+    if (!accessToken) return;
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/notifications/read-all`,
@@ -524,79 +646,105 @@ function App() {
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Unable to mark all notifications as read");
-      }
+      await parseApiResponse(response);
 
       await loadNotifications();
     } catch (error) {
       console.error("Mark all notifications as read error:", error);
     }
   };
+
   const loadBackendData = async () => {
+    if (!accessToken) {
+      setBackendLoading(false);
+      return;
+    }
+
     setBackendLoading(true);
     setBackendError("");
 
+    try {
+      const fetchJson = async (path) => {
+        const response = await fetch(`${API_BASE_URL}${path}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
 
-    const fetchJson = async (path) => {
-      const response = await fetch(`${API_BASE_URL}${path}`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+        return await parseApiResponse(response);
+      };
 
-      const data = await response.json().catch(() => ({}));
+      const results = await Promise.allSettled([
+        fetchJson("/reviews"),
+        fetchJson("/analytics"),
+        fetchJson("/governance"),
+        fetchJson("/audit-logs"),
+      ]);
 
-      if (!response.ok) {
-        throw new Error(
-          data.detail || `Request failed: ${path} (${response.status})`
+      const errors = [];
+
+      if (results[0].status === "fulfilled") {
+        setBackendReviews(
+          Array.isArray(results[0].value.reviews)
+            ? results[0].value.reviews
+            : []
+        );
+      } else {
+        errors.push(
+          `Reviews: ${results[0].reason?.message || "Unable to load"}`
         );
       }
 
-      return data;
-    };
+      if (results[1].status === "fulfilled") {
+        setAnalytics(results[1].value || null);
+      } else {
+        errors.push(
+          `Analytics: ${results[1].reason?.message || "Unable to load"}`
+        );
+      }
 
+      if (results[2].status === "fulfilled") {
+        setBackendGovernance(
+          Array.isArray(results[2].value.items)
+            ? results[2].value.items
+            : []
+        );
+      } else {
+        errors.push(
+          `Governance: ${results[2].reason?.message || "Unable to load"}`
+        );
+      }
 
-    const results = await Promise.allSettled([
-      fetchJson("/reviews"),
-      fetchJson("/analytics"),
-      fetchJson("/governance"),
-      fetchJson("/audit-logs"),
-    ]);
+      if (results[3].status === "fulfilled") {
+        setAuditLogs(
+          Array.isArray(results[3].value.logs)
+            ? results[3].value.logs
+            : []
+        );
+      } else {
+        errors.push(
+          `Audit logs: ${results[3].reason?.message || "Unable to load"}`
+        );
+      }
 
-    const errors = [];
+      if (errors.length > 0) {
+        setBackendError(errors.join(" | "));
+        console.error(
+          "Some VERITY AI backend data could not be loaded:",
+          errors
+        );
+      }
+    } catch (error) {
+      console.error("Backend data loading error:", error);
 
-    if (results[0].status === "fulfilled") {
-      setBackendReviews(results[0].value.reviews || []);
-    } else {
-      errors.push(`Reviews: ${results[0].reason?.message || "Unable to load"}`);
+      setBackendError(
+        error.message || "Unable to load backend data."
+      );
+    } finally {
+      setBackendLoading(false);
     }
-
-    if (results[1].status === "fulfilled") {
-      setAnalytics(results[1].value || null);
-    } else {
-      errors.push(`Analytics: ${results[1].reason?.message || "Unable to load"}`);
-    }
-
-    if (results[2].status === "fulfilled") {
-      setBackendGovernance(results[2].value.items || []);
-    } else {
-      errors.push(`Governance: ${results[2].reason?.message || "Unable to load"}`);
-    }
-
-    if (results[3].status === "fulfilled") {
-      setAuditLogs(results[3].value.logs || []);
-    } else {
-      errors.push(`Audit logs: ${results[3].reason?.message || "Unable to load"}`);
-    }
-
-    if (errors.length) {
-      setBackendError(errors.join(" | "));
-      console.error("Some VARIETY AI backend data could not be loaded:", errors);
-    }
-
-    setBackendLoading(false);
   };
+
   const handleRegister = async (event) => {
     event.preventDefault();
     setAuthError("");
@@ -900,6 +1048,248 @@ function App() {
     }
   };
 
+  // ============================================================
+  // BATCH 5 — LOAD SUPPORT TICKETS
+  // ============================================================
+
+  const loadSupportTickets = async () => {
+    if (!accessToken) return;
+
+    setSupportLoading(true);
+    setSupportError("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/support/tickets`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to load support tickets."
+        );
+      }
+
+      setSupportTickets(
+        Array.isArray(data)
+          ? data
+          : data.tickets || []
+      );
+
+    } catch (error) {
+      setSupportError(
+        error.message || "Unable to load support tickets."
+      );
+    } finally {
+      setSupportLoading(false);
+    }
+  };
+  // ============================================================
+  // BATCH 5 — SUBMIT SUPPORT TICKET
+  // ============================================================
+
+  const handleSupportSubmit = async (event) => {
+    event.preventDefault();
+
+    setSupportError("");
+    setSupportSuccess("");
+
+    const subject = supportSubject.trim();
+    const message = supportMessage.trim();
+
+    if (subject.length < 3) {
+      setSupportError(
+        "Subject must contain at least 3 characters."
+      );
+      return;
+    }
+
+    if (message.length < 10) {
+      setSupportError(
+        "Please provide at least 10 characters in your message."
+      );
+      return;
+    }
+
+    if (!accessToken) {
+      setSupportError(
+        "Your session has expired. Please sign in again."
+      );
+      return;
+    }
+
+    setSupportSubmitting(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/support/tickets`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            subject,
+            category: supportCategory,
+            message,
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Unable to submit your support request."
+        );
+      }
+
+      setSupportSuccess(
+        data.message || "Your support request was submitted successfully."
+      );
+
+      setSupportSubject("");
+      setSupportCategory("technical");
+      setSupportMessage("");
+
+      await loadSupportTickets();
+
+    } catch (error) {
+      setSupportError(
+        error.message || "Unable to submit your support request."
+      );
+    } finally {
+      setSupportSubmitting(false);
+    }
+  };
+
+  // ============================================================
+  // BATCH 5 — PLATFORM HEALTH
+  // ============================================================
+
+  const loadPlatformHealth = async () => {
+    setPlatformHealthLoading(true);
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/health`
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error("Backend health check failed.");
+      }
+
+      setPlatformHealth(data);
+
+    } catch (error) {
+      setPlatformHealth({
+        status: "unavailable",
+        message: error.message,
+      });
+    } finally {
+      setPlatformHealthLoading(false);
+    }
+  };
+
+  // ============================================================
+  // BATCH 5 — PRIVACY DATA EXPORT
+  // ============================================================
+
+
+  const handlePrivacyExport = async (format) => {
+    if (!accessToken) {
+      setPrivacyError("Your session has expired. Please sign in again.");
+      return;
+    }
+
+    if (!["json", "csv"].includes(format)) {
+      setPrivacyError("Unsupported export format.");
+      return;
+    }
+
+    setPrivacyExporting(format);
+    setPrivacyError("");
+    setPrivacySuccess("");
+
+    let downloadUrl = "";
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/privacy/data-export?format=${format}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        await parseApiResponse(response);
+      }
+
+      const blob = await response.blob();
+
+      if (!blob || blob.size === 0) {
+        throw new Error("The data export returned an empty file.");
+      }
+
+      downloadUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+
+      link.href = downloadUrl;
+
+      link.download =
+        format === "csv"
+          ? "verity-ai-data-export.zip"
+          : "verity-ai-data-export.json";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setPrivacySuccess(
+        "Your personal data export was generated successfully."
+      );
+
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 1000);
+
+      downloadUrl = "";
+    } catch (error) {
+      setPrivacyError(
+        error.message || "Unable to export your data."
+      );
+    } finally {
+      if (downloadUrl) {
+        window.URL.revokeObjectURL(downloadUrl);
+      }
+
+      setPrivacyExporting("");
+    }
+  };
+
+  // ============================================================
+  // BATCH 5 — LOAD ABOUT & SUPPORT DATA
+  // ============================================================
+
+  useEffect(() => {
+    if (activePage === "settings" && accessToken) {
+      loadSupportTickets();
+      loadPlatformHealth();
+    }
+  }, [activePage, accessToken]);
+
   const [reviewHistory, setReviewHistory] = useState(() => {
     try {
       const saved = localStorage.getItem("variety_review_history");
@@ -908,6 +1298,9 @@ function App() {
       return [];
     }
   });
+
+  const [selectedHistoryReview, setSelectedHistoryReview] =
+    useState(null);
 
   const [content, setContent] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -1107,6 +1500,12 @@ function App() {
   ============================================================ */
 
   useEffect(() => {
+    if (!accessToken) {
+      setGuidelines([]);
+      setSelectedGuideline("");
+      return;
+    }
+
     const loadGuidelines = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/guidelines`, {
@@ -1125,7 +1524,17 @@ function App() {
         setGuidelines(loadedGuidelines);
 
         if (loadedGuidelines.length > 0) {
-          setSelectedGuideline(String(loadedGuidelines[0].id));
+          setSelectedGuideline((previous) => {
+            const previousExists = loadedGuidelines.some(
+              (guideline) => String(guideline.id) === previous
+            );
+
+            return previousExists
+              ? previous
+              : String(loadedGuidelines[0].id);
+          });
+        } else {
+          setSelectedGuideline("");
         }
       } catch (error) {
         console.error("Unable to load guidelines:", error);
@@ -1133,14 +1542,24 @@ function App() {
     };
 
     loadGuidelines();
-  }, []);
+  }, [accessToken]);
 
   /* ============================================================
      GUIDELINE UPLOAD
   ============================================================ */
 
+
   const uploadGuideline = async (file) => {
     if (!file) return;
+
+    const token =
+      accessToken ||
+      sessionStorage.getItem("variety_access_token");
+
+    if (!token) {
+      setUploadError("Your session has expired. Please sign in again.");
+      return;
+    }
 
     setIsUploading(true);
     setUploadMessage("");
@@ -1155,46 +1574,50 @@ function App() {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${sessionStorage.getItem("variety_access_token")}`,
+            Authorization: `Bearer ${token}`,
           },
           body: formData,
         }
       );
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
-      if (!response.ok) {
-        throw new Error(
-          data.detail || "Unable to upload the guideline."
-        );
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error("The upload service returned an invalid response.");
       }
 
       setUploadMessage(
-        `${data.filename} uploaded successfully.`
+        `${data.filename || file.name} uploaded successfully.`
       );
 
       const guidelinesResponse = await fetch(
-        `${API_BASE_URL}/guidelines`
+        `${API_BASE_URL}/guidelines`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
 
-      if (!guidelinesResponse.ok) {
-        throw new Error(
-          "Guideline uploaded, but list could not be refreshed."
-        );
-      }
-
-      const guidelinesData =
-        await guidelinesResponse.json();
+      const guidelinesData = await parseApiResponse(
+        guidelinesResponse
+      );
 
       const updatedGuidelines =
-        guidelinesData.guidelines || [];
+        Array.isArray(guidelinesData.guidelines)
+          ? guidelinesData.guidelines
+          : [];
 
       setGuidelines(updatedGuidelines);
 
       if (data.guideline_id) {
+        setSelectedGuideline(String(data.guideline_id));
+      } else if (updatedGuidelines.length > 0) {
         setSelectedGuideline(
-          String(data.guideline_id)
+          String(updatedGuidelines[0].id)
         );
+      } else {
+        setSelectedGuideline("");
       }
     } catch (error) {
       console.error("Guideline upload error:", error);
@@ -1321,14 +1744,27 @@ function App() {
       finding.rule_name ||
       "Brand governance finding";
 
+
     const severity = String(
       finding.severity || "medium"
-    ).toLowerCase();
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/[\s/-]+/g, "_");
+
+    const severityAliases = {
+      critical: "critical",
+      high: "high",
+      moderate: "moderate",
+      medium: "medium",
+      low: "low",
+      low_observation: "low_observation",
+      observation: "low_observation",
+    };
 
     const normalizedSeverity =
-      ["high", "medium", "low"].includes(severity)
-        ? severity
-        : "medium";
+      severityAliases[severity] || "medium";
+
 
     const findingKey =
       `${title}|${detectedText}`.toLowerCase();
@@ -1358,7 +1794,7 @@ function App() {
         title,
         category:
           finding.category ||
-          "Brand Compliance",
+          "Guideline Compliance",
 
         severity: normalizedSeverity,
 
@@ -1382,7 +1818,7 @@ function App() {
 
         guidelineFilename:
           reviewData?.guideline_filename ||
-          "Selected brand guideline",
+          "Selected guideline",
 
         createdAt:
           new Date().toISOString(),
@@ -1522,14 +1958,20 @@ function App() {
 
     const severity = String(
       finding.severity || "medium"
-    ).toLowerCase();
+    )
+      .trim()
+      .toLowerCase()
+      .replace(/[\s/-]+/g, "_");
 
     const score =
-      severity === "high"
-        ? 45
-        : severity === "medium"
-          ? 65
-          : 80;
+      severity === "critical"
+        ? 30
+        : severity === "high"
+          ? 45
+          : severity === "moderate" ||
+            severity === "medium"
+            ? 65
+            : 85;
 
     const newItem = {
       id: Date.now(),
@@ -1562,9 +2004,8 @@ function App() {
      BRAND HEALTH
   ============================================================ */
 
-  const calculateReviewHealth = (
-    result
-  ) => {
+
+  const calculateReviewHealth = (result) => {
     if (!result) {
       return {
         score: 92,
@@ -1575,53 +2016,51 @@ function App() {
       };
     }
 
-    const riskSummary =
-      result.risk_summary || {};
+    const riskSummary = result.risk_summary || {};
 
-    const high = Number(
-      riskSummary.high || 0
-    );
+    const getRiskCount = (value) => {
+      const count = Number(value);
+      return Number.isFinite(count) && count > 0
+        ? count
+        : 0;
+    };
 
-    const medium = Number(
-      riskSummary.medium || 0
-    );
-
-    const low = Number(
-      riskSummary.low || 0
-    );
+    const high = getRiskCount(riskSummary.high);
+    const medium = getRiskCount(riskSummary.medium);
+    const low = getRiskCount(riskSummary.low);
 
     const claimScore = Math.max(
       35,
       Math.min(
         100,
-        100 -
-        high * 18 -
-        medium * 8 -
-        low * 2
+        100 - high * 18 - medium * 8 - low * 2
       )
     );
 
+    const evidenceScores = evidenceItems
+      .map((item) => Number(item.score))
+      .filter((score) => Number.isFinite(score));
+
     const evidenceScore =
-      evidenceItems.length > 0
-        ? Math.round(
-          evidenceItems.reduce(
-            (total, item) =>
-              total +
-              Number(
-                item.score || 0
-              ),
-            0
-          ) /
-          evidenceItems.length
+      evidenceScores.length > 0
+        ? Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round(
+              evidenceScores.reduce(
+                (total, score) => total + score,
+                0
+              ) / evidenceScores.length
+            )
+          )
         )
         : 92;
 
     const voiceScore =
-      result.review_status ===
-        "COMPLIANT"
+      result.review_status === "COMPLIANT"
         ? 96
-        : result.review_status ===
-          "HIGH_RISK"
+        : result.review_status === "HIGH_RISK"
           ? 78
           : 88;
 
@@ -1647,74 +2086,61 @@ function App() {
     };
   };
 
-  const recordHealthSnapshot = (
-    result
-  ) => {
-    const health =
-      calculateReviewHealth(result);
+
+  const recordHealthSnapshot = (result) => {
+    const health = calculateReviewHealth(result);
+
+    const timestamp = new Date().toISOString();
+    const snapshotId = Date.now();
 
     const snapshot = {
-      id: Date.now(),
+      id: snapshotId,
       score: health.score,
-      claimScore:
-        health.claimScore,
-      evidenceScore:
-        health.evidenceScore,
-      voiceScore:
-        health.voiceScore,
+      claimScore: health.claimScore,
+      evidenceScore: health.evidenceScore,
+      voiceScore: health.voiceScore,
       status: health.status,
       source: "AI Review",
-      timestamp:
-        new Date().toISOString(),
+      timestamp,
     };
 
-    setHealthHistory(
-      (previous) =>
-        [
-          ...previous,
-          snapshot,
-        ].slice(-30)
+    setHealthHistory((previous) =>
+      [...previous, snapshot].slice(-30)
     );
 
     const alerts = [];
 
     if (health.score < 70) {
       alerts.push({
-        id: `health-${Date.now()}-1`,
+        id: `health-${snapshotId}-1`,
         type: "risk",
-        title:
-          "Brand health risk detected",
+        title: "Brand health risk detected",
         message:
           "The latest review indicates a significant drop in brand health.",
       });
     } else if (health.score < 82) {
       alerts.push({
-        id: `health-${Date.now()}-2`,
+        id: `health-${snapshotId}-2`,
         type: "watch",
-        title:
-          "Brand health requires attention",
+        title: "Brand health requires attention",
         message:
           "Recent content signals suggest emerging brand drift.",
       });
     } else {
       alerts.push({
-        id: `health-${Date.now()}-3`,
+        id: `health-${snapshotId}-3`,
         type: "stable",
-        title:
-          "Brand health remains stable",
+        title: "Brand health remains stable",
         message:
           "The latest AI review is aligned with the current brand baseline.",
       });
     }
 
-    if (
-      health.evidenceScore < 75
-    ) {
+    if (health.evidenceScore < 75) {
       alerts.push({
-        id: `evidence-${Date.now()}`,
+        id: `evidence-${snapshotId}`,
         type: "watch",
-        title:
-          "Evidence coverage is weakening",
+        title: "Evidence coverage is weakening",
         message:
           "Several active claims require stronger supporting evidence.",
       });
@@ -1736,18 +2162,35 @@ function App() {
       );
       return;
     }
+    const token =
+      accessToken ||
+      sessionStorage.getItem("variety_access_token");
+
+    if (!token) {
+      setReviewResult({
+        review_status: "ERROR",
+        message: "Your session has expired. Please sign in again.",
+      });
+
+      return;
+    }
 
     setIsAnalyzing(true);
     setReviewResult(null);
 
     try {
+      console.log("STEP 1: AI review function started");
+      console.log("STEP 2: API URL:", API_BASE_URL);
+      console.log("STEP 3: Selected guideline:", selectedGuideline);
+      console.log("STEP 4: Sending request to Gemini backend");
+
       const response = await fetch(
         `${API_BASE_URL}/review-content`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionStorage.getItem("variety_access_token")}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             guideline_id:
@@ -1757,12 +2200,11 @@ function App() {
         }
       );
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
-      if (!response.ok) {
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
         throw new Error(
-          data.detail ||
-          "Review request failed"
+          "The AI review service returned an invalid response."
         );
       }
 
@@ -1824,7 +2266,39 @@ function App() {
 
         high,
         medium,
+
         low,
+
+        // Risk Assessment
+        system_risk_tier:
+          data.system_risk_tier || "UNKNOWN",
+
+        risk_tier_rationale:
+          data.risk_tier_rationale || "",
+
+        risk_factor_assessments:
+          Array.isArray(data.risk_factor_assessments)
+            ? data.risk_factor_assessments
+            : [],
+
+        composite_score:
+          data.composite_score ?? null,
+
+        risk_escalation:
+          data.risk_escalation || "UNKNOWN",
+
+        risk_escalation_triggers:
+          Array.isArray(data.risk_escalation_triggers)
+            ? data.risk_escalation_triggers
+            : [],
+
+        risk_escalation_rationale:
+          data.risk_escalation_rationale || "",
+
+        findings: Array.isArray(data.findings)
+          ? data.findings
+          : [],
+
       };
 
       setReviewHistory(
@@ -2068,6 +2542,32 @@ function App() {
           governanceItems.length,
       };
     }, [governanceItems]);
+
+  const analyticsChartCoordinates = useMemo(() => {
+    if (analyticsHistory.length === 0) {
+      return [];
+    }
+
+    const values = analyticsHistory.map(
+      (item) => Number(item.score) || 0
+    );
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const spread = Math.max(max - min, 5);
+
+    return values.map((value, index) => {
+      const x =
+        values.length === 1
+          ? 300
+          : 30 + (index / (values.length - 1)) * 540;
+
+      const y =
+        145 - ((value - (min - 3)) / (spread + 6)) * 120;
+
+      return { x, y };
+    });
+  }, [analyticsHistory]);
 
   /* ============================================================
      DASHBOARD
@@ -2474,60 +2974,21 @@ function App() {
                       ))}
 
                       <polyline
-                        points={(() => {
-                          const values = analyticsHistory.map(
-                            (item) => Number(item.score) || 0
-                          );
-
-                          const min = Math.min(...values);
-                          const max = Math.max(...values);
-                          const spread = Math.max(max - min, 5);
-
-                          return values
-                            .map((value, index) => {
-                              const x =
-                                values.length === 1
-                                  ? 300
-                                  : 30 +
-                                  (index / (values.length - 1)) * 540;
-
-                              const y =
-                                145 -
-                                ((value - (min - 3)) / (spread + 6)) * 120;
-
-                              return `${x},${y}`;
-                            })
-                            .join(" ");
-                        })()}
+                        points={analyticsChartCoordinates
+                          .map(({ x, y }) => `${x},${y}`)
+                          .join(" ")}
                         className="analytics-line"
                       />
 
+
                       {analyticsHistory.map((item, index) => {
-                        const values = analyticsHistory.map(
-                          (entry) => Number(entry.score) || 0
-                        );
-
-                        const min = Math.min(...values);
-                        const max = Math.max(...values);
-                        const spread = Math.max(max - min, 5);
-
-                        const x =
-                          values.length === 1
-                            ? 300
-                            : 30 +
-                            (index / (values.length - 1)) * 540;
-
-                        const y =
-                          145 -
-                          ((Number(item.score) - (min - 3)) /
-                            (spread + 6)) *
-                          120;
+                        const point = analyticsChartCoordinates[index];
 
                         return (
                           <circle
                             key={item.id ?? index}
-                            cx={x}
-                            cy={y}
+                            cx={point.x}
+                            cy={point.y}
                             r="5"
                             className="analytics-point"
                           />
@@ -2884,6 +3345,7 @@ function App() {
             </div>
           </div>
 
+
           <div className="review-history-list">
             {reviewHistory.length === 0 ? (
               <div className="empty-state">
@@ -2892,49 +3354,254 @@ function App() {
             ) : (
               reviewHistory.map((review) => (
                 <div
-                  className="review-history-card"
+                  className="review-history-item"
                   key={review.id}
                 >
-                  <div>
-                    <span className="review-id">
-                      RV-{review.id}
-                    </span>
+                  <div
+                    className="review-history-card"
+                    onClick={() =>
+                      setSelectedHistoryReview(
+                        selectedHistoryReview?.id === review.id
+                          ? null
+                          : review
+                      )
+                    }
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={
+                      selectedHistoryReview?.id === review.id
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
 
-                    <h3>
-                      {review.content
-                        ? review.content.slice(0, 80)
-                        : `${review.guideline_filename || "Brand review"} — ${review.review_status || "Review"}`}
-                      {review.content &&
-                        review.content.length > 80
-                        ? "..."
-                        : ""}
-                    </h3>
+                        setSelectedHistoryReview(
+                          selectedHistoryReview?.id === review.id
+                            ? null
+                            : review
+                        );
+                      }
+                    }}
+                  >
+                    <div>
+                      <span className="review-id">
+                        RV-{review.id}
+                      </span>
 
-                    <p>
-                      {new Date(
-                        review.reviewed_at
-                      ).toLocaleString()}
-                    </p>
+                      <h3>
+                        {review.content
+                          ? review.content.slice(0, 80)
+                          : `${review.guideline_filename || "Brand review"} — ${review.review_status || "Review"}`}
+                        {review.content && review.content.length > 80
+                          ? "..."
+                          : ""}
+                      </h3>
+
+                      <p>
+                        {new Date(
+                          review.reviewed_at
+                        ).toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="review-history-risk">
+                      <span
+                        className={`status-badge ${review.review_status === "COMPLIANT"
+                          ? "status-compliant"
+                          : review.review_status === "HIGH_RISK"
+                            ? "status-high"
+                            : "status-warning"
+                          }`}
+                      >
+                        {review.review_status || "NEEDS_REVISION"}
+                      </span>
+
+                      <strong>
+                        {review.total_violations || 0}
+                      </strong>
+
+                      <span>findings</span>
+                    </div>
                   </div>
 
-                  <div className="review-history-risk">
-                    <span
-                      className={`status-badge ${review.review_status === "COMPLIANT"
-                        ? "status-compliant"
-                        : review.review_status === "HIGH_RISK"
-                          ? "status-high"
-                          : "status-warning"
-                        }`}
-                    >
-                      {review.review_status || "NEEDS_REVISION"}
-                    </span>
+                  {selectedHistoryReview?.id === review.id && (
+                    <div className="panel review-details-panel">
+                      <div className="panel-header">
+                        <div>
+                          <h2>Review Details</h2>
+                          <p>
+                            RV-{selectedHistoryReview.id} ·{" "}
+                            {selectedHistoryReview.review_status}
+                          </p>
+                        </div>
 
-                    <strong>
-                      {review.total_violations || 0}
-                    </strong>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedHistoryReview(null)}
+                        >
+                          Close
+                        </button>
+                      </div>
 
-                    <span>findings</span>
-                  </div>
+                      <h3>Submitted Content</h3>
+                      <p>
+                        {selectedHistoryReview.content ||
+                          "No submitted content available."}
+                      </p>
+
+                      {selectedHistoryReview.risk_factor_assessments?.length > 0 && (
+                        <div className="review-history-card">
+                          <h3>Risk Assessment</h3>
+
+                          <p>
+                            <strong>System Risk Tier:</strong>{" "}
+                            <span
+                              className={`status-badge ${selectedHistoryReview.system_risk_tier === "TIER 4"
+                                ? "status-high"
+                                : selectedHistoryReview.system_risk_tier === "UNKNOWN"
+                                  ? "status-warning"
+                                  : "status-compliant"
+                                }`}
+                            >
+                              {selectedHistoryReview.system_risk_tier || "UNKNOWN"}
+                            </span>
+                          </p>
+
+                          <p>
+                            <strong>Composite Score:</strong>{" "}
+                            {selectedHistoryReview.composite_score ?? "N/A"}
+                            / 32
+                          </p>
+
+                          <p>
+                            <strong>Risk Tier Rationale:</strong>
+                          </p>
+                          <p>
+                            {selectedHistoryReview.risk_tier_rationale || "Not available."}
+                          </p>
+
+                          <p>
+                            <strong>Risk Escalation:</strong>{" "}
+                            <span
+                              className={`status-badge ${selectedHistoryReview.risk_escalation === "YES"
+                                ? "status-high"
+                                : selectedHistoryReview.risk_escalation === "NO"
+                                  ? "status-compliant"
+                                  : "status-warning"
+                                }`}
+                            >
+                              {selectedHistoryReview.risk_escalation || "UNKNOWN"}
+                            </span>
+                          </p>
+
+                          <p>
+                            <strong>Escalation Rationale:</strong>
+                          </p>
+                          <p>
+                            {selectedHistoryReview.risk_escalation_rationale || "Not available."}
+                          </p>
+
+                          {selectedHistoryReview.risk_escalation_triggers?.length > 0 && (
+                            <>
+                              <p><strong>Escalation Triggers:</strong></p>
+                              <ul>
+                                {selectedHistoryReview.risk_escalation_triggers.map(
+                                  (trigger, index) => (
+                                    <li key={index}>{trigger}</li>
+                                  )
+                                )}
+                              </ul>
+                            </>
+                          )}
+
+                          <h3>Individual Risk Factor Assessments</h3>
+
+                          {selectedHistoryReview.risk_factor_assessments.map(
+                            (factor, index) => (
+                              <div key={index}>
+                                <p>
+                                  <strong>{factor.factor}</strong>
+                                </p>
+
+                                <p>
+                                  <strong>Score:</strong>{" "}
+                                  {factor.score ?? "Not assessed"} / 4
+                                </p>
+
+                                <p>
+                                  <strong>Evidence:</strong>
+                                </p>
+                                <p>{factor.evidence || "Not provided."}</p>
+
+                                <p>
+                                  <strong>Rationale:</strong>
+                                </p>
+                                <p>{factor.rationale || "Not provided."}</p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
+
+                      <h3>
+                        Findings (
+                        {selectedHistoryReview.findings?.length ?? 0}
+                        )
+                      </h3>
+
+                      {!selectedHistoryReview.findings?.length ? (
+                        <p>No findings were recorded for this review.</p>
+                      ) : (
+                        selectedHistoryReview.findings.map(
+                          (finding, index) => (
+                            <div
+                              className="review-history-card"
+                              key={index}
+                            >
+                              <span
+                                className={`status-badge ${finding.severity === "HIGH"
+                                  ? "status-high"
+                                  : finding.severity === "MEDIUM"
+                                    ? "status-warning"
+                                    : "status-compliant"
+                                  }`}
+                              >
+                                {finding.severity || "LOW"}
+                              </span>
+
+                              <h3>
+                                {finding.rule || "Guideline finding"}
+                              </h3>
+
+                              <p>
+                                <strong>Category:</strong>{" "}
+                                {finding.category || "General"}
+                              </p>
+
+                              <p><strong>Detected text:</strong></p>
+                              <p>{finding.detected_text}</p>
+
+                              <p><strong>Guideline reference:</strong></p>
+                              <p>{finding.guideline_reference}</p>
+
+                              <p><strong>Explanation:</strong></p>
+                              <p>{finding.explanation}</p>
+
+                              <p><strong>Suggested correction:</strong></p>
+                              <p>{finding.suggestion}</p>
+
+                              <p>
+                                <strong>Confidence:</strong>{" "}
+                                {finding.confidence ?? "N/A"}
+                                {finding.confidence != null ? "%" : ""}
+                              </p>
+                            </div>
+                          )
+                        )
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -3394,6 +4061,42 @@ function App() {
         low: 0,
       };
 
+    const severityCounts = {
+      critical: findings.filter(
+        (item) =>
+          String(item.severity).toUpperCase() === "CRITICAL"
+      ).length,
+
+      high: findings.filter(
+        (item) =>
+          String(item.severity).toUpperCase() === "HIGH"
+      ).length,
+
+      moderate: findings.filter(
+        (item) =>
+          String(item.severity).toUpperCase() === "MODERATE"
+      ).length,
+
+      medium: findings.filter(
+        (item) =>
+          String(item.severity).toUpperCase() === "MEDIUM"
+      ).length,
+
+      low: findings.filter(
+        (item) => {
+          const severity = String(item.severity)
+            .trim()
+            .toUpperCase();
+
+          return (
+            severity === "LOW" ||
+            severity === "LOW/OBSERVATION" ||
+            severity === "OBSERVATION"
+          );
+        }
+      ).length,
+    };
+
     const totalViolations =
       result?.total_violations ??
       findings.length;
@@ -3662,14 +4365,14 @@ function App() {
                   </span>
 
                   <h2>
-                    Brand compliance
+                    Guideline compliance
                     assessment
                   </h2>
 
                   <p>
                     {result.guideline_filename
                       ? `Analyzed against ${result.guideline_filename}`
-                      : "Analysis completed by the VARIETY intelligence engine."}
+                      : "Analysis completed by the VERITY AI review engine."}
                   </p>
                 </div>
 
@@ -3739,18 +4442,31 @@ function App() {
                   </span>
                 </div>
 
+                <div className="risk-stat-card critical">
+                  <span className="risk-stat-label">
+                    CRITICAL
+                  </span>
+
+                  <strong>
+                    {severityCounts.critical}
+                  </strong>
+
+                  <span>
+                    critical findings
+                  </span>
+                </div>
+
                 <div className="risk-stat-card high">
                   <span className="risk-stat-label">
                     HIGH RISK
                   </span>
 
                   <strong>
-                    {riskSummary.high ||
-                      0}
+                    {severityCounts.high}
                   </strong>
 
                   <span>
-                    critical findings
+                    high-priority findings
                   </span>
                 </div>
 
@@ -3760,8 +4476,7 @@ function App() {
                   </span>
 
                   <strong>
-                    {riskSummary.medium ||
-                      0}
+                    {severityCounts.moderate + severityCounts.medium}
                   </strong>
 
                   <span>
@@ -3804,12 +4519,12 @@ function App() {
                       finding,
                       index
                     ) => {
-                      const severity =
-                        String(
-                          finding.severity ||
-                          "medium"
-                        ).toLowerCase();
-
+                      const severity = String(
+                        finding.severity || "medium"
+                      )
+                        .trim()
+                        .toLowerCase()
+                        .replace(/[\s/-]+/g, "_");
                       const detectedText =
                         finding.detected_text ||
                         finding.matched_text ||
@@ -3839,7 +4554,7 @@ function App() {
                             <div>
                               <span className="finding-category">
                                 {finding.category ||
-                                  "Brand Compliance"}
+                                  "Guideline Compliance"}
                               </span>
 
                               <h3>
@@ -3853,7 +4568,9 @@ function App() {
                             <span
                               className={`finding-severity ${severity}`}
                             >
-                              {severity.toUpperCase()}
+                              {severity === "low_observation"
+                                ? "LOW / OBSERVATION"
+                                : severity.toUpperCase()}
                             </span>
                           </div>
 
@@ -5311,13 +6028,14 @@ function App() {
                     <div className="governance-item-top">
                       <div className="governance-item-title">
                         <div className="governance-severity-icon">
-                          {item.severity ===
-                            "high"
-                            ? "!"
-                            : item.severity ===
-                              "medium"
-                              ? "◆"
-                              : "•"}
+                          {item.severity === "critical"
+                            ? "!!"
+                            : item.severity === "high"
+                              ? "!"
+                              : item.severity === "moderate" ||
+                                item.severity === "medium"
+                                ? "◆"
+                                : "•"}
                         </div>
 
                         <div>
@@ -6237,6 +6955,530 @@ function App() {
                 </div>
               ))}
             </div>
+            {/* ============================================================
+    BATCH 5 — ABOUT & SUPPORT
+============================================================ */}
+
+            <div className="settings-about-support">
+
+              {/* ABOUT VERITY AI */}
+
+              <div className="panel settings-about-card">
+
+                <div className="panel-header">
+                  <div>
+                    <span className="panel-kicker">
+                      PRODUCT INFORMATION
+                    </span>
+
+                    <h2>About VERITY AI</h2>
+
+                    <p>
+                      Your intelligent brand governance and compliance platform.
+                    </p>
+                  </div>
+
+                  <span className="ai-chip">
+                    ✦ ABOUT
+                  </span>
+                </div>
+
+                <div className="settings-about-brand">
+                  <div className="settings-about-logo">
+                    V
+                  </div>
+
+                  <div>
+                    <h3>VERITY AI</h3>
+
+                    <p>
+                      Brand Trust Compiler
+                    </p>
+                  </div>
+
+                  <span className="settings-version">
+                    Version 1.0.0
+                  </span>
+                </div>
+
+                <p className="settings-about-description">
+                  VERITY AI helps organizations review brand content,
+                  identify compliance risks, manage supporting evidence,
+                  monitor brand consistency and maintain governance
+                  workflows through an integrated intelligence platform.
+                </p>
+
+                <div className="settings-about-features">
+
+                  <div>
+                    <span>✦</span>
+                    <strong>AI Content Review</strong>
+                    <p>Analyze content against brand guidelines.</p>
+                  </div>
+
+                  <div>
+                    <span>◆</span>
+                    <strong>Brand Governance</strong>
+                    <p>Track findings and compliance actions.</p>
+                  </div>
+
+                  <div>
+                    <span>◎</span>
+                    <strong>Evidence Intelligence</strong>
+                    <p>Manage evidence and claim verification.</p>
+                  </div>
+
+                  <div>
+                    <span>◇</span>
+                    <strong>Brand Health</strong>
+                    <p>Monitor consistency and brand risks.</p>
+                  </div>
+
+                </div>
+
+                <div className="settings-about-footer">
+                  <span>VERITY AI Intelligence Platform</span>
+                  <span>© 2026</span>
+                </div>
+
+              </div>
+
+
+              {/* PLATFORM STATUS */}
+
+              <div className="panel settings-platform-card">
+
+                <div className="panel-header">
+                  <div>
+                    <span className="panel-kicker">
+                      SYSTEM INFORMATION
+                    </span>
+
+                    <h2>Platform Status</h2>
+                  </div>
+
+                  <span className="ai-chip">
+                    ✦ SYSTEM
+                  </span>
+                </div>
+
+                <div className="settings-info-row">
+                  <span>Application</span>
+                  <strong>VERITY AI</strong>
+                </div>
+
+                <div className="settings-info-row">
+                  <span>Application version</span>
+                  <strong>1.0.0</strong>
+                </div>
+
+                <div className="settings-info-row">
+                  <span>Authentication</span>
+                  <strong>Protected</strong>
+                </div>
+
+                <div className="settings-info-row">
+                  <span>Backend connection</span>
+
+                  <strong className={
+                    platformHealth?.status === "healthy"
+                      ? "settings-active-text"
+                      : platformHealth
+                        ? "settings-error-text"
+                        : ""
+                  }>
+                    {platformHealthLoading
+                      ? "Checking..."
+                      : platformHealth?.status === "healthy"
+                        ? "Operational"
+                        : platformHealth
+                          ? "Unavailable"
+                          : "Not checked"}
+                  </strong>
+                </div>
+
+                {platformHealth?.message && (
+                  <p className="settings-session-muted">
+                    {platformHealth.message}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  className="secondary-button settings-health-button"
+                  onClick={loadPlatformHealth}
+                  disabled={platformHealthLoading}
+                >
+                  {platformHealthLoading
+                    ? "Checking platform..."
+                    : "Refresh System Status"}
+
+                  <span>↻</span>
+                </button>
+
+              </div>
+
+
+              {/* HELP AND DOCUMENTATION */}
+
+              <HelpCentre />
+
+
+              {/* CONTACT SUPPORT */}
+
+              <div className="panel settings-support-card">
+
+                <div className="panel-header">
+                  <div>
+                    <span className="panel-kicker">
+                      CUSTOMER SUPPORT
+                    </span>
+
+                    <h2>Contact Support</h2>
+
+                    <p>
+                      Submit a request if you need assistance with VERITY AI.
+                    </p>
+                  </div>
+
+                  <span className="ai-chip">
+                    ✦ SUPPORT
+                  </span>
+                </div>
+
+                <form
+                  className="settings-form"
+                  onSubmit={handleSupportSubmit}
+                >
+
+                  <div className="review-field">
+                    <label htmlFor="support-subject">
+                      Subject
+                    </label>
+
+                    <input
+                      id="support-subject"
+                      type="text"
+                      value={supportSubject}
+                      onChange={(event) => {
+                        setSupportSubject(event.target.value);
+                        setSupportError("");
+                        setSupportSuccess("");
+                      }}
+                      placeholder="Briefly describe your issue"
+                      minLength={3}
+                      maxLength={160}
+                      required
+                    />
+                  </div>
+
+                  <div className="review-field">
+                    <label htmlFor="support-category">
+                      Request Category
+                    </label>
+
+                    <select
+                      id="support-category"
+                      value={supportCategory}
+                      onChange={(event) => setSupportCategory(event.target.value)}
+                      required
+                    >
+                      <option value="technical">Technical Support</option>
+                      <option value="account">Account Assistance</option>
+                      <option value="billing">Billing</option>
+                      <option value="feature_request">Feature Request</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div className="review-field">
+                    <label htmlFor="support-message">
+                      Message
+                    </label>
+
+                    <textarea
+                      id="support-message"
+                      value={supportMessage}
+                      onChange={(event) => {
+                        setSupportMessage(event.target.value);
+                        setSupportError("");
+                        setSupportSuccess("");
+                      }}
+                      placeholder="Describe your request in detail..."
+                      minLength={10}
+                      maxLength={5000}
+                      rows={5}
+                      required
+                    />
+
+                    <small className="settings-character-count">
+                      {supportMessage.length}/5000 characters
+                    </small>
+                  </div>
+
+                  {supportError && (
+                    <div
+                      className="settings-message error"
+                      role="alert"
+                    >
+                      {supportError}
+                    </div>
+                  )}
+
+                  {supportSuccess && (
+                    <div
+                      className="settings-message success"
+                      role="status"
+                    >
+                      ✓ {supportSuccess}
+                    </div>
+                  )}
+
+                  <div className="settings-save-row">
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={supportSubmitting}
+                    >
+                      {supportSubmitting
+                        ? "Submitting Request..."
+                        : "Submit Support Request"}
+
+                      <span>→</span>
+                    </button>
+                  </div>
+
+                </form>
+
+              </div>
+
+
+              {/* MY SUPPORT TICKETS */}
+
+              <div className="panel settings-tickets-card">
+
+                <div className="panel-header">
+                  <div>
+                    <span className="panel-kicker">
+                      REQUEST HISTORY
+                    </span>
+
+                    <h2>My Support Tickets</h2>
+
+                    <p>
+                      Review the support requests submitted from your account.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={loadSupportTickets}
+                    disabled={supportLoading}
+                  >
+                    {supportLoading ? "Refreshing..." : "Refresh"}
+
+                    <span>↻</span>
+                  </button>
+                </div>
+
+                {supportLoading ? (
+                  <div className="settings-empty-state">
+                    Loading your support tickets...
+                  </div>
+                ) : supportError ? (
+                  <div
+                    className="settings-message error"
+                    role="alert"
+                  >
+                    {supportError}
+                  </div>
+                ) : supportTickets.length === 0 ? (
+                  <div className="settings-empty-state">
+                    <div className="settings-empty-icon">◇</div>
+
+                    <h3>No support requests yet</h3>
+
+                    <p>
+                      Your submitted support tickets will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="settings-ticket-list">
+
+                      {supportTickets.map((ticket) => (
+                        <div
+                          className="settings-ticket-row"
+                          key={ticket.id}
+                          onClick={() => setSelectedSupportTicket(ticket)}
+                          style={{ cursor: "pointer" }}
+                        >
+
+                          <div className="settings-ticket-main">
+
+                            <div className="settings-ticket-heading">
+                              <strong>
+                                {ticket.subject}
+                              </strong>
+
+                              <span className="settings-ticket-id">
+                                #{ticket.id}
+                              </span>
+                            </div>
+
+                            <div className="settings-ticket-meta">
+                              <span>
+                                {String(ticket.category || "other")
+                                  .replaceAll("_", " ")}
+                              </span>
+
+                              <span>
+                                {ticket.created_at
+                                  ? new Date(ticket.created_at).toLocaleString()
+                                  : "Date unavailable"}
+                              </span>
+                            </div>
+
+                          </div>
+
+                          <span
+                            className={`settings-ticket-status ${String(ticket.status || "OPEN").toLowerCase()
+                              }`}
+                          >
+                            {ticket.status || "OPEN"}
+                          </span>
+
+                        </div>
+                      ))}
+
+                    </div>
+                    {selectedSupportTicket && (
+                      <SupportConversation
+                        accessToken={accessToken}
+                        ticketId={selectedSupportTicket.id}
+                      />
+                    )}
+                  </>
+                )}
+
+                {/* SUPPORT AGENT INBOX */}
+
+                {currentUser?.role &&
+                  ["admin", "support"].includes(
+                    currentUser.role.toLowerCase()
+                  ) && (
+                    <SupportAgentInbox accessToken={accessToken} />
+                  )}
+
+                {/* PRIVACY AND DATA */}
+
+                <div className="panel settings-privacy-card">
+
+                  <div className="panel-header">
+                    <div>
+                      <span className="panel-kicker">
+                        DATA CONTROL
+                      </span>
+
+                      <h2>Privacy & Your Data</h2>
+
+                      <p>
+                        Access and export the application data associated
+                        with your account.
+                      </p>
+                    </div>
+
+                    <span className="ai-chip">
+                      ✦ PRIVACY
+                    </span>
+                  </div>
+
+                  <div className="settings-privacy-info">
+
+                    <div className="settings-privacy-icon">
+                      ◆
+                    </div>
+
+                    <div>
+                      <h3>Your data belongs to your account.</h3>
+
+                      <p>
+                        VERITY AI provides authenticated access to your
+                        account data. Available exports are limited to
+                        records associated with your logged-in account.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  {privacyError && (
+                    <div
+                      className="settings-message error"
+                      role="alert"
+                    >
+                      {privacyError}
+                    </div>
+                  )}
+
+                  {privacySuccess && (
+                    <div
+                      className="settings-message success"
+                      role="status"
+                    >
+                      ✓ {privacySuccess}
+                    </div>
+                  )}
+
+                  <div className="settings-privacy-actions">
+
+                    <div>
+                      <strong>Export your data</strong>
+
+                      <p>
+                        Download your available account data in JSON or CSV format.
+                      </p>
+                    </div>
+
+                    <div className="settings-export-buttons">
+
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handlePrivacyExport("json")}
+                        disabled={Boolean(privacyExporting)}
+                      >
+                        {privacyExporting === "json"
+                          ? "Preparing..."
+                          : "Export JSON"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handlePrivacyExport("csv")}
+                        disabled={Boolean(privacyExporting)}
+                      >
+                        {privacyExporting === "csv"
+                          ? "Preparing..."
+                          : "Export CSV"}
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                  <div className="settings-privacy-note">
+                    <strong>Important:</strong> Exported files may contain
+                    confidential workspace information. Store them securely
+                    and do not share them with unauthorized people.
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
 
           </div>
         );
@@ -6453,6 +7695,59 @@ function App() {
                   color: "#ffffff"
                 }}
               />
+
+              <div style={{
+                marginTop: "12px",
+                padding: "16px",
+                borderRadius: "10px",
+                background: "#202b46",
+                border: "1px solid #52658f"
+              }}>
+                <h3 style={{
+                  margin: "0 0 10px",
+                  color: "#a9bdff",
+                  fontSize: "16px"
+                }}>
+                  Try VARIETY AI — Demo Account
+                </h3>
+
+                <p style={{
+                  color: "#c4cee2",
+                  fontSize: "13px",
+                  margin: "6px 0"
+                }}>
+                  Demo Email: YOUR_DEMO_EMAIL
+                </p>
+
+                <p style={{
+                  color: "#c4cee2",
+                  fontSize: "13px",
+                  margin: "6px 0 14px"
+                }}>
+                  Demo Password: YOUR_DEMO_PASSWORD
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginEmail("aryanbdighole34@gmail.com");
+                    setLoginPassword("Ai&cs@engg#$&@");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "11px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#647ff0",
+                    color: "#ffffff",
+                    fontWeight: "600",
+                    cursor: "pointer"
+                  }}
+                >
+                  Use Demo Credentials
+                </button>
+              </div>
+
 
             </>
           )}

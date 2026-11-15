@@ -7,3 +7,4 @@ PyJWT
 pwdlib[argon2]
 python-dotenv
 psycopg[binary]
+google-genai==2.34.0
